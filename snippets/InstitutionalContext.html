@@ -1,0 +1,429 @@
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  /* --- BASE STYLES --- */
+  .analytics-container { max-width: 1200px; margin: 0 auto; font-family: "Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif; color: #333; padding-bottom: 50px; }
+  .analytics-intro { margin-bottom: 30px; line-height: 1.6; max-width: 900px; border-bottom: 1px solid #eee; padding-bottom: 20px; }
+  .analytics-intro h1 { color: #003478; font-size: 2.2rem; margin-bottom: 10px; margin-top: 0; }
+  
+  /* --- GRID LAYOUT --- */
+  .analytics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 25px; margin-bottom: 25px; }
+  
+  /* --- CARD STYLES --- */
+  /* Adjusted min-height to fit the 450px chart + headers comfortably */
+  .chart-card { background: #fff; padding: 20px; border-left: 5px solid #003478; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 4px; display: flex; flex-direction: column; min-height: 500px !important; }
+  .chart-card.peer-card { border-left: 5px solid #A51C30; }
+  .chart-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; margin-bottom: 15px; padding-bottom: 10px; }
+  .chart-card h2 { color: #003478; font-size: 1.2rem; margin: 0; padding: 0; border: none; font-weight: 700; }
+  .peer-card h2 { color: #A51C30; }
+  
+  /* --- CONTROL PANEL STYLES --- */
+  .controls-wrapper { background-color: #f8f9fa; padding: 15px; border-radius: 4px; margin-bottom: 15px; border: 1px solid #e9ecef; }
+  .control-group { margin-bottom: 15px; }
+  .control-label { display: block; font-weight: bold; font-size: 0.85rem; color: #555; margin-bottom: 5px; text-transform: uppercase; }
+  .chart-control-select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: "Whitney", sans-serif; font-size: 1rem; }
+  
+  /* --- KPI BOXES --- */
+  .kpi-container { display: flex; gap: 15px; margin-top: 15px; }
+  .kpi-box { flex: 1; padding: 10px; border-radius: 4px; text-align: center; }
+  .kpi-box.blue { background-color: #eff6ff; border: 1px solid #bfdbfe; color: #003478; }
+  .kpi-box.red { background-color: #fef2f2; border: 1px solid #fecaca; color: #A51C30; }
+  .kpi-value { font-size: 1.5rem; font-weight: bold; display: block; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  /* --- CHART INTERNALS --- */
+  /* Final Height: 450px */
+  .chart-container { 
+      position: relative; 
+      width: 100%; 
+      height: 450px !important; 
+  }
+  
+  .tooltip { position: absolute; text-align: left; padding: 10px; font: 12px "Whitney", sans-serif; background: rgba(255, 255, 255, 0.95); color: #333; border: 1px solid #ccc; border-radius: 4px; pointer-events: none; opacity: 0; z-index: 100; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+  
+  /* --- TABLE STYLES --- */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .data-table th { text-align: left; padding: 10px; border-bottom: 2px solid #ccc; background-color: #f8f9fa; position: sticky; top: 0; }
+  .data-table td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+  .col-brandeis { color: #003478; font-weight: bold; background-color: #f8fafc; }
+  .col-peer { color: #A51C30; font-weight: bold; background-color: #fff1f2; }
+  .table-wrapper { max-height: 400px; overflow-y: auto; border: 1px solid #eee; }
+  
+  /* Slider Styling */
+  .range-container { position: relative; height: 30px; margin-top: 10px; }
+  input[type=range] { position: absolute; width: 100%; pointer-events: none; -webkit-appearance: none; z-index: 2; height: 10px; opacity: 0; cursor: pointer; }
+  input[type=range]::-webkit-slider-thumb { pointer-events: all; width: 16px; height: 16px; -webkit-appearance: none; background-color: #003478; border-radius: 50%; cursor: pointer; opacity: 1; }
+  .slider-display { font-family: monospace; background: #eee; padding: 2px 6px; border-radius: 3px; }
+  
+/* --- DATA NOTE STYLE --- */
+.data-note {
+    background-color: #f0f4f8; 
+    border-left: 5px solid #003478; 
+    padding: 15px 20px;
+    margin-top: 15px;
+    font-family: "Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 0.95rem;
+    color: #2d3748;
+    line-height: 1.6;
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.data-note strong { color: #003478; display: block; margin-bottom: 5px; }
+</style>
+
+<div class="analytics-container">
+    <div class="analytics-intro">
+        <p>Comparative IPEDS Fall Enrollment Data. Use the controls below to filter by year and select peer institutions for benchmarking.</p>
+    </div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Dashboard Controls</h2></div>
+            <div class="controls-wrapper">
+                <div class="control-group">
+                    <label class="control-label">Compare Brandeis with:</label> <select class="chart-control-select" id="institutionSelect"></select>
+                </div>
+                <div class="control-group">
+                    <p><label class="control-label">Year Range: <span class="slider-display" id="yearStartDisplay">2012</span> - <span class="slider-display" id="yearEndDisplay">2022</span></label></p>
+                    <div class="range-container">
+                        <div style="background-color:#ddd;border-radius:2px;height:4px;left:0;position:absolute;right:0;top:4px;">&nbsp;</div>
+                        <input style="background-color:transparent;opacity:1;top:-2px;position:absolute;width:100%;margin:0;" type="range" id="sliderStart" min="2012" max="2022" value="2012"> 
+                        <input style="background-color:transparent;opacity:1;top:-2px;position:absolute;width:100%;margin:0;" type="range" id="sliderEnd" min="2012" max="2022" value="2022">
+                    </div>
+                </div>
+                <div class="kpi-container">
+                    <div class="kpi-box blue"><span class="kpi-label">Brandeis Avg</span> <span class="kpi-value" id="statAvgBrandeis">-</span></div>
+                    <div class="kpi-box red"><span class="kpi-label">Peer Avg</span> <span class="kpi-value" id="statAvgPeer">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="analytics-intro" style="border-style:none;margin-bottom:10px;margin-top:20px;"><h2 style="color:#333;font-size:1.5rem;">1. Total Enrollment Trends</h2></div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Brandeis University</h2></div>
+            <div class="chart-container" id="plot-total-static" style="height: 450px !important;">&nbsp;</div>
+        </div>
+        <div class="chart-card peer-card">
+            <div class="chart-card-header"><h2 class="peer-label">Peer Institution</h2></div>
+            <div class="chart-container" id="plot-total-peer" style="height: 450px !important;">&nbsp;</div>
+        </div>
+    </div>
+
+    <div class="analytics-intro" style="border-style:none;margin-bottom:10px;margin-top:20px;"><h2 style="color:#333;font-size:1.5rem;">2. Undergraduate vs. Graduate</h2></div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Brandeis University</h2></div>
+            <div class="chart-container" id="plot-level-static" style="height: 450px !important;">&nbsp;</div>
+        </div>
+        <div class="chart-card peer-card">
+            <div class="chart-card-header"><h2 class="peer-label">Peer Institution</h2></div>
+            <div class="chart-container" id="plot-level-peer" style="height: 450px !important;">&nbsp;</div>
+        </div>
+    </div>
+
+    <div class="analytics-intro" style="border-style:none;margin-bottom:10px;margin-top:20px;"><h2 style="color:#333;font-size:1.5rem;">3. Race / Ethnicity</h2></div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Brandeis University</h2></div>
+            <div class="chart-container" id="plot-race-static" style="height: 450px !important;">&nbsp;</div>
+        </div>
+        <div class="chart-card peer-card">
+            <div class="chart-card-header"><h2 class="peer-label">Peer Institution</h2></div>
+            <div class="chart-container" id="plot-race-peer" style="height: 450px !important;">&nbsp;</div>
+        </div>
+    </div>
+
+    <div class="analytics-intro" style="border-style:none;margin-bottom:10px;margin-top:20px;"><h2 style="color:#333;font-size:1.5rem;">4. Attendance Status</h2></div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Brandeis University</h2></div>
+            <div class="chart-container" id="plot-attendance-static" style="height: 450px !important;">&nbsp;</div>
+        </div>
+        <div class="chart-card peer-card">
+            <div class="chart-card-header"><h2 class="peer-label">Peer Institution</h2></div>
+            <div class="chart-container" id="plot-attendance-peer" style="height: 450px !important;">&nbsp;</div>
+        </div>
+    </div>
+
+    <div class="analytics-intro" style="border-style:none;margin-bottom:10px;margin-top:20px;">
+        <h2 style="color:#333;font-size:1.5rem;">5. Gender Distribution</h2>
+        <div class="data-note">
+            <strong>Note on Data Limitations</strong> The data visualized below is sourced from the Integrated Postsecondary Education Data System (IPEDS), which currently restricts gender reporting to binary categories (Men/Women).
+        </div>
+    </div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Brandeis University</h2></div>
+            <div class="chart-container" id="plot-gender-static" style="height: 450px !important;">&nbsp;</div>
+        </div>
+        <div class="chart-card peer-card">
+            <div class="chart-card-header"><h2 class="peer-label">Peer Institution</h2></div>
+            <div class="chart-container" id="plot-gender-peer" style="height: 450px !important;">&nbsp;</div>
+        </div>
+    </div>
+</div>
+<div class="tooltip" id="tooltip">&nbsp;</div>
+
+<script>
+    // --- CONFIGURATION ---
+    const COLORS = {
+        primary: '#003478', 
+        secondary: '#A51C30',
+        palette: ['#003478', '#A51C30', '#059669', '#d97706', '#4f46e5', '#7c3aed', '#db2777', '#475569', '#0891b2']
+    };
+    
+    // IPEDS Race Categories
+    const RACE_MAP = {
+        1: "White", 2: "Black/African American", 3: "Hispanic/Latino",
+        4: "Asian", 5: "American Indian/Alaska Native", 6: "Native Hawaiian/Pacific Islander",
+        7: "Two or More Races", 8: "U.S. Nonresident", 9: "Unknown", 99: "Total"
+    };
+    const STATIC_INSTITUTION = "Brandeis University";
+    let rawData = [], currentPeer = "", yearRange = [2012, 2022];
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        if (typeof d3 === 'undefined') { console.error("D3 library not loaded."); return; }
+
+        d3.json('/wp-content/uploads/custom-data/peer_enrollment_granular.json').then(data => {
+            rawData = data;
+            if (!rawData || !rawData.length) throw new Error("Empty Data");
+            setupControls();
+            updateDashboard();
+        }).catch(error => {
+            console.error(error);
+             document.querySelector('.analytics-container').insertAdjacentHTML('afterbegin', `
+                <div style="padding:15px; background:#fef2f2; border:1px solid #fecaca; color:#991b1b; border-radius:4px; margin-bottom:20px;">
+                <strong>System Message:</strong> Unable to load data source. ${error.message}
+                </div>
+            `);
+        });
+    });
+
+    // --- DATA LOGIC ---
+    function getFilteredData(institution) {
+        return rawData.filter(d => d.institution === institution && d.year >= yearRange[0] && d.year <= yearRange[1]);
+    }
+    function updateDashboard() {
+        const brandeisData = getFilteredData(STATIC_INSTITUTION);
+        const peerData = getFilteredData(currentPeer);
+        if (brandeisData.length) renderInstitutionCharts(brandeisData, 'static');
+        if (peerData.length) renderInstitutionCharts(peerData, 'peer');
+        document.querySelectorAll('.peer-label').forEach(el => el.innerText = currentPeer);
+    }
+    function getBestTotal(rows) {
+        if (!rows || rows.length === 0) return 0;
+        let candidates = rows.filter(d => d.degree_seeking === 99 && d.class_level === 99);
+        if (candidates.length > 0) return d3.max(candidates, d => +d.enrollment_fall) || 0;
+        return d3.max(rows, d => +d.enrollment_fall) || 0;
+    }
+    
+    // --- AGGREGATORS ---
+    function aggregateTotalEnrollment(data) {
+        const filtered = data.filter(d => d.race === 99 && d.sex === 99 && d.ftpt === 99);
+        const nested = d3.groups(filtered, d => d.year);
+        return nested.map(([year, rows]) => {
+            const byLevel = d3.groups(rows, d => d.study_level_label);
+            return { year, count: d3.sum(byLevel, ([l, r]) => getBestTotal(r)) || 0 };
+        }).sort((a,b) => a.year - b.year);
+    }
+    function aggregateByLevel(data) {
+        const filtered = data.filter(d => d.race === 99 && d.sex === 99 && d.ftpt === 99);
+        const nested = d3.groups(filtered, d => d.year);
+        return nested.map(([year, rows]) => {
+            const undergradRows = rows.filter(v => v.study_level_label === 'undergraduate');
+            const gradRows = rows.filter(v => v.study_level_label === 'graduate');
+            return { year, Undergraduate: getBestTotal(undergradRows), Graduate: getBestTotal(gradRows) };
+        }).sort((a,b) => a.year - b.year);
+    }
+    function aggregateByRace(data) {
+        const filtered = data.filter(d => d.race !== 99 && d.sex === 99 && d.ftpt === 99);
+        const nested = d3.groups(filtered, d => d.year, d => d.race);
+        const years = Array.from(new Set(data.map(d=>d.year))).sort();
+        return years.map(year => {
+            const yearMap = nested.find(n => n[0] === year);
+            const obj = { year };
+            Object.keys(RACE_MAP).forEach(k => {
+                if (k != 99) {
+                     const raceGroup = yearMap ? yearMap[1].find(r => r[0] == k) : null;
+                     if (raceGroup) {
+                         const byLevel = d3.groups(raceGroup[1], d => d.study_level_label);
+                         obj[RACE_MAP[k]] = d3.sum(byLevel, ([l, r]) => getBestTotal(r)) || 0;
+                     } else { obj[RACE_MAP[k]] = 0; }
+                }
+            });
+            return obj;
+        });
+    }
+    function aggregateByAttendance(data) {
+        const filtered = data.filter(d => d.race === 99 && d.sex === 99 && d.ftpt !== 99);
+        const nested = d3.groups(filtered, d => d.year, d => d.ftpt);
+        const years = Array.from(new Set(data.map(d=>d.year))).sort();
+        return years.map(year => {
+            const yearGroup = nested.find(n => n[0] === year);
+            const getVal = (ftpt) => {
+                if (!yearGroup) return 0;
+                const rows = yearGroup[1].find(r => r[0] === ftpt);
+                if (!rows) return 0;
+                const byLevel = d3.groups(rows[1], d => d.study_level_label);
+                return d3.sum(byLevel, ([l, r]) => getBestTotal(r)) || 0;
+            };
+            return { year, "Full-time": getVal(1), "Part-time": getVal(2) };
+        });
+    }
+    function aggregateByGender(data) {
+        const filtered = data.filter(d => d.race === 99 && d.sex !== 99 && d.ftpt === 99);
+        const nested = d3.groups(filtered, d => d.year, d => d.sex);
+        const years = Array.from(new Set(data.map(d=>d.year))).sort();
+        return years.map(year => {
+            const yearGroup = nested.find(n => n[0] === year);
+            const getVal = (sex) => {
+                if (!yearGroup) return 0;
+                const rows = yearGroup[1].find(r => r[0] === sex);
+                if (!rows) return 0;
+                const byLevel = d3.groups(rows[1], d => d.study_level_label);
+                return d3.sum(byLevel, ([l, r]) => getBestTotal(r)) || 0;
+            };
+            return { year, Men: getVal(1), Women: getVal(2) };
+        });
+    }
+
+    // --- RENDERERS ---
+    function renderInstitutionCharts(data, suffix) {
+        const totalData = aggregateTotalEnrollment(data);
+        const levelData = aggregateByLevel(data);
+        const raceData = aggregateByRace(data);
+        const attendanceData = aggregateByAttendance(data);
+        const genderData = aggregateByGender(data);
+        d3.select(suffix === 'static' ? '#statAvgBrandeis' : '#statAvgPeer')
+          .text(Math.round(d3.mean(totalData, d => d.count) || 0).toLocaleString());
+        
+        renderLineChart(`#plot-total-${suffix}`, totalData, ['count'], [COLORS.primary]);
+        renderLineChart(`#plot-level-${suffix}`, levelData, ['Undergraduate', 'Graduate'], [COLORS.primary, '#60a5fa']);
+        renderLineChart(`#plot-gender-${suffix}`, genderData, ['Men', 'Women'], ['#334155', '#be123c']);
+        renderLineChart(`#plot-attendance-${suffix}`, attendanceData, ['Full-time', 'Part-time'], [COLORS.primary, '#94a3b8']);
+        
+        const raceKeys = Object.values(RACE_MAP).filter(x => x !== "Total");
+        renderStackedBarChart(`#plot-race-${suffix}`, raceData, raceKeys, COLORS.palette);
+    }
+
+    // *** TOP-DOWN LEGEND POSITIONING ***
+    function renderLegend(svg, keys, colors, width, margin) {
+        svg.select(".legend-group").remove();
+        const legend = svg.append("g").attr("class", "legend-group");
+        const itemWidth = 140; 
+        const itemsPerRow = Math.floor(width / itemWidth);
+        const rowHeight = 20;
+        keys.forEach((key, i) => {
+            const row = Math.floor(i / itemsPerRow);
+            const col = i % itemsPerRow;
+            const g = legend.append("g").attr("transform", `translate(${col * itemWidth}, ${row * rowHeight})`);
+            g.append("rect").attr("width", 12).attr("height", 12).attr("fill", colors[i % colors.length]);
+            g.append("text").attr("x", 16).attr("y", 10).text(key).attr("font-size", "10px").attr("fill", "#666").style("font-family", "sans-serif");
+        });
+        
+        // Anchors legend at top-left, 10px below SVG top edge
+        legend.attr("transform", `translate(0, -${margin.top - 10})`);
+    }
+
+    function renderLineChart(selector, data, keys, colors) {
+        const container = d3.select(selector);
+        container.html("");
+        const rect = container.node().getBoundingClientRect();
+        const width = rect.width;
+        // FINAL: Height 450, Margin 80 (Standard)
+        const height = 450;
+        const margin = {top: 80, right: 20, bottom: 40, left: 45}; 
+        const svg = container.append("svg")
+            .attr("width", width).attr("height", height)
+            .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+        
+        const x = d3.scaleLinear().domain(d3.extent(data, d => d.year)).range([0, width - margin.left - margin.right]);
+        const yMax = d3.max(data, d => d3.max(keys, k => d[k])) || 1000;
+        const y = d3.scaleLinear().domain([0, yMax * 1.1]).range([height - margin.top - margin.bottom, 0]);
+        
+        svg.append("g").attr("transform", `translate(0,${height - margin.top - margin.bottom})`).call(d3.axisBottom(x).tickFormat(d3.format("d")).ticks(5));
+        svg.append("g").call(d3.axisLeft(y).ticks(5));
+        svg.append("g").attr("class", "grid").attr("opacity", 0.1).call(d3.axisLeft(y).tickSize(-(width - margin.left - margin.right)).tickFormat(""));
+        
+        keys.forEach((key, i) => {
+            const line = d3.line().x(d => x(d.year)).y(d => y(d[key] || 0));
+            svg.append("path").datum(data).attr("fill", "none").attr("stroke", colors[i]).attr("stroke-width", 2.5).attr("d", line);
+            svg.selectAll(`.dot-${i}`).data(data).enter().append("circle")
+                .attr("cx", d => x(d.year)).attr("cy", d => y(d[key] || 0))
+                .attr("r", 4).attr("fill", "white").attr("stroke", colors[i]).attr("stroke-width", 2)
+                .on("mouseover", (event, d) => {
+                    d3.select(event.currentTarget).attr("r", 6).attr("fill", colors[i]);
+                    showTooltip(event, `<strong>${key}</strong><br>Year: ${d.year}<br>Count: ${(d[key]||0).toLocaleString()}`);
+                })
+                .on("mouseout", (event) => {
+                    d3.select(event.currentTarget).attr("r", 4).attr("fill", "white");
+                    hideTooltip();
+                });
+        });
+        if (keys.length > 1 || keys[0] !== 'count') {
+            renderLegend(svg, keys, colors, width - margin.left - margin.right, margin);
+        }
+    }
+
+    function renderStackedBarChart(selector, data, keys, colors) {
+        const container = d3.select(selector);
+        container.html("");
+        const rect = container.node().getBoundingClientRect();
+        const width = rect.width;
+        // FINAL: Height 450, Margin 140 (Extra space for Race legend)
+        const height = 450;
+        const margin = {top: 140, right: 20, bottom: 40, left: 45};
+        
+        const svg = container.append("svg").attr("width", width).attr("height", height).append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+        const stack = d3.stack().keys(keys);
+        const stackedData = stack(data);
+        const x = d3.scaleBand().domain(data.map(d => d.year)).range([0, width - margin.left - margin.right]).padding(0.2); 
+        const yMax = d3.max(stackedData, layer => d3.max(layer, d => d[1])) || 1000;
+        const y = d3.scaleLinear().domain([0, yMax]).range([height - margin.top - margin.bottom, 0]);
+        const colorScale = d3.scaleOrdinal().domain(keys).range(colors);
+        
+        svg.append("g").attr("transform", `translate(0,${height - margin.top - margin.bottom})`).call(d3.axisBottom(x).tickFormat(d3.format("d"))); 
+        svg.append("g").call(d3.axisLeft(y).ticks(5));
+        svg.append("g").selectAll("g").data(stackedData).join("g").attr("fill", d => colorScale(d.key))
+            .selectAll("rect").data(d => d).join("rect")
+            .attr("x", d => x(d.data.year)).attr("y", d => y(d[1])).attr("height", d => y(d[0]) - y(d[1])).attr("width", x.bandwidth()).attr("opacity", 0.9)
+            .on("mouseover", function(event, d) {
+                const key = d3.select(this.parentNode).datum().key;
+                d3.select(this).attr("opacity", 1).attr("stroke", "#333").attr("stroke-width", 1);
+                showTooltip(event, `<strong>${key}</strong><br>Year: ${d.data.year}<br>Count: ${(d[1] - d[0]).toLocaleString()}`);
+            })
+            .on("mouseout", function() { 
+                d3.select(this).attr("opacity", 0.9).attr("stroke", "none"); 
+                hideTooltip(); 
+            });
+        renderLegend(svg, keys, colors, width - margin.left - margin.right, margin);
+    }
+
+    function setupControls() {
+        const institutions = Array.from(new Set(rawData.map(d => d.institution))).filter(d => d !== STATIC_INSTITUTION).sort();
+        const selector = document.getElementById('institutionSelect');
+        institutions.forEach(inst => { const opt = document.createElement('option'); opt.value = inst; opt.text = inst; selector.appendChild(opt); });
+        currentPeer = institutions[0] || "";
+        selector.addEventListener('change', (e) => { currentPeer = e.target.value; updateDashboard(); });
+        const s1 = document.getElementById('sliderStart');
+        const s2 = document.getElementById('sliderEnd');
+        const d1 = document.getElementById('yearStartDisplay');
+        const d2 = document.getElementById('yearEndDisplay');
+        function updateSlider() {
+            let v1 = parseInt(s1.value);
+            let v2 = parseInt(s2.value);
+            if (v1 > v2) { let tmp = v1; v1 = v2; v2 = tmp; }
+            yearRange = [v1, v2]; d1.innerText = v1; d2.innerText = v2; updateDashboard();
+        }
+        s1.addEventListener('input', updateSlider);
+        s2.addEventListener('input', updateSlider);
+    }
+    function showTooltip(event, htmlContent) {
+        const tooltip = d3.select("#tooltip");
+        tooltip.transition().duration(200).style("opacity", 1);
+        tooltip.html(htmlContent).style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px");
+    }
+    function hideTooltip() { d3.select("#tooltip").transition().duration(200).style("opacity", 0); }
+    let resizeTimer;
+    window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(updateDashboard, 250); });
+</script>
