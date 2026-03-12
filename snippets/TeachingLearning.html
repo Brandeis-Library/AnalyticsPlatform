@@ -1,0 +1,1335 @@
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+  /* --- Layout & Typography --- */
+  .analytics-container { 
+      max-width: 100%;
+      margin: 0 auto; 
+      font-family: "Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif; 
+      color: #333; 
+      position: relative;
+  }
+    
+  /* --- Header --- */
+  .analytics-header {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e1e4e8;
+  }
+  .analytics-intro p { margin: 0; color: #666; font-size: 1rem; max-width: 800px; }
+	
+  /* --- Section Header Text --- */
+  .section-title {
+      grid-column: 1 / -1;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #003478;            
+      margin-top: 20px;          
+      margin-bottom: -15px;      
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e1e4e8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+  }
+
+  /* --- Sticky Controls --- */
+  .analytics-controls {
+      position: -webkit-sticky;
+      /* Safari */
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(5px);
+      padding: 15px 0;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 30px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+      box-shadow: 0 4px 6px -4px rgba(0,0,0,0.1);
+  }
+   
+  .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+  }
+  .filter-group label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #003478;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+  }
+  .filter-group select {
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      min-width: 250px;
+      background-color: #fff;
+      cursor: pointer;
+  }
+  .filter-group select:hover { border-color: #003478; }
+
+  /* Date Input Style */
+  .date-input {
+      padding: 7px 10px;
+      font-size: 0.95rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: "Whitney", sans-serif;
+      color: #333;
+  }
+
+  /* Reset Button Style */
+  .btn-reset {
+      margin-top: 18px; 
+      padding: 7px 15px;
+      cursor: pointer; 
+      border: 1px solid #ccc; 
+      background: #fff; 
+      border-radius: 4px;
+      color: #003478 !important; 
+      font-weight: 600;
+      font-size: 0.9rem;
+  }
+  .btn-reset:hover {
+      background-color: #f0f0f0;
+      border-color: #003478;
+  }
+
+  /* --- Grid Layout --- */
+  .analytics-grid { 
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+     gap: 30px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* --- Cards --- */
+  .chart-card { 
+     background: #fff; 
+     padding: 25px;
+     border-radius: 8px; 
+     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+     border-top: 4px solid #003478;
+     display: flex; 
+     flex-direction: column; 
+     min-height: 400px; 
+     position: relative;
+  }
+
+  .chart-card-header h2 { 
+      color: #003478;
+      font-size: 1.2rem; 
+      margin: 0 0 20px 0;
+      font-weight: 700;
+  }
+  
+  /* --- Last Updated Tag --- */
+  .card-meta-tag {
+      position: absolute;
+      top: 25px;
+      right: 25px;
+      font-size: 0.75rem;
+      color: #888;
+      background: #f9f9f9;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #eee;
+  }
+   
+  /* --- Table Styles --- */
+  .analytics-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+  }
+  .analytics-table th, .analytics-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #e1e4e8;
+  }
+  .analytics-table th {
+      background-color: #f8f9fa;
+      color: #003478;
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+  }
+  .analytics-table tr:hover { background-color: #fcfcfc; }
+  .ratio-highlight { font-weight: 700; color: #003478; }
+
+  /* --- Chart Elements --- */
+  .axis-text { font-family: "Whitney", sans-serif; font-size: 11px; color: #666; } 
+  .grid-line line { stroke: #e0e0e0; stroke-dasharray: 3,3; }
+  .grid-line path { stroke-width: 0; }
+   
+  /* Legend */
+  .legend-container { display: flex; gap: 15px; font-size: 12px; margin-top: 15px; justify-content: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; }
+  .legend-color { width: 12px; height: 12px; margin-right: 6px; border-radius: 2px; }
+
+  /* --- Tooltip --- */
+  .chart-tooltip { 
+      position: absolute;
+      padding: 10px 12px; 
+      font: 13px "Whitney", sans-serif; 
+      background: rgba(255, 255, 255, 0.98); 
+      color: #333; 
+      border: 1px solid #c0c0c0;
+      border-radius: 4px;
+      pointer-events: none; 
+      opacity: 0; 
+      z-index: 9999; 
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      line-height: 1.4;
+      max-width: 250px;
+  }
+   
+  /* --- Status Messages --- */
+  .status-msg { 
+      display: flex;
+      align-items: center; 
+      justify-content: center; 
+      height: 100%; 
+      color: #777; 
+      background: #f9f9f9; 
+      font-style: italic;
+      border: 1px dashed #ddd;
+      padding: 20px;
+      text-align: center;
+  }
+  .error-text { color: #d9534f; font-style: normal; font-weight: 500; }
+
+  @media (max-width: 768px) {
+      .analytics-grid { grid-template-columns: 1fr; }
+      .analytics-controls { flex-direction: column; align-items: stretch; position: relative; } 
+      .card-meta-tag { position: static; display: inline-block; margin-bottom: 15px; }
+  }
+</style>
+
+<div class="analytics-container">
+    
+    <div class="analytics-header">
+        <div class="analytics-intro">
+            <p>Collections and instruction data reflecting course offerings trends.</p>
+        </div>
+    </div>
+	
+    <div class="course-metrics-wrapper">
+        <h3 class="section-title">Course Metrics</h3>
+
+        <div class="analytics-controls">
+            <div class="filter-group">
+                <label for="schoolSelect">Filter by School:</label>
+                <select id="schoolSelect">
+                    <option value="All">All Schools</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="deptSelect">Filter by Department:</label>
+                <select id="deptSelect">
+                    <option value="All">All Departments</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="analytics-grid">
+ 
+            <div class="chart-card">
+                <div class="chart-card-header"><h2>Course Levels (Undergrad vs Grad)</h2></div>
+                <div id="level-chart" style="width:100%; height:320px;">
+                    <div class="status-msg">Loading Data...</div>
+                </div>
+                <div class="legend-container" id="level-legend"></div>
+            </div>
+            
+            <div class="chart-card">
+                <div class="chart-card-header"><h2>Instruction Mode Trends</h2></div>
+                <div id="mode-chart" style="width:100%; height:320px;">
+                    <div class="status-msg">Loading Data...</div>
+                </div>
+                <div class="legend-container" id="mode-legend"></div>
+            </div>
+
+            <div class="chart-card full-width">
+                <div class="chart-card-header"><h2>Class Size Distribution (Median & IQR)</h2></div>
+                <div id="median-chart" style="width:100%; height:350px;">
+                    <div class="status-msg">Loading Data...</div>
+                </div>
+                <div class="legend-container">
+                    <div class="legend-item"><div class="legend-color" style="background:#003478; height:3px; margin-top:4px;"></div><span>Median Size</span></div>
+                    <div class="legend-item"><div class="legend-color" style="background:#003478; opacity:0.15;"></div><span>Middle 50% Range (IQR)</span></div>
+                </div>
+            </div>
+
+            <div class="chart-card full-width">
+                <div class="chart-card-header"><h2>Volume & Capacity: Courses Offered vs. Median Size</h2></div>
+                <div id="combo-chart" style="width:100%; height:400px;">
+                    <div class="status-msg">Loading Data...</div>
+                </div>
+            </div>
+        </div>
+    </div> 
+
+    <h3 class="section-title">Library Instruction and Services Metrics</h3>
+    
+    <div class="analytics-grid" style="margin-top: 30px; margin-bottom: 30px;">
+        <div class="chart-card full-width">
+            <div class="chart-card-header">
+                <h2>Student : Liaison Ratios</h2>
+                <div id="ratio-last-updated" class="card-meta-tag" style="display:none;"></div>
+            </div>
+            <div id="ratio-table-container" style="overflow-x: auto;">
+                <div class="status-msg">Loading Ratio Data...</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="library-metrics-wrapper">
+        
+        <div class="analytics-controls">
+            <div class="filter-group">
+                <label for="libStart">Start Date:</label>
+                <input type="date" id="libStart" class="date-input">
+            </div>
+            <div class="filter-group">
+                <label for="libEnd">End Date:</label>
+                <input type="date" id="libEnd" class="date-input">
+            </div>
+            <div class="filter-group" style="justify-content: flex-end;">
+                <button id="libResetBtn" class="btn-reset">Reset Dates</button>
+            </div>
+        </div>
+
+        <div class="analytics-grid">
+            <div class="chart-card full-width">
+                <div class="chart-card-header">
+                     <h2>Instruction Sessions by Department & Type</h2>
+                </div>
+                <div id="events-chart" style="width:100%; height:500px;">
+                    <div class="status-msg">Loading Event Data...</div>
+                </div>
+            </div>
+            
+            <div class="chart-card full-width">
+                <div class="chart-card-header">
+                      <h2>Workshop Trends: Registrations vs. Attendance</h2>
+                </div>
+                <div id="libcal-chart" style="width:100%; height:500px;">
+                    <div class="status-msg">Waiting for Data...</div>
+                </div>
+                <div class="legend-container">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#003478;"></div>
+                        <span>Registrations (Seats Taken)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background:#34b4e3;"></div>
+                        <span>Actual Attendance</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div> 
+</div>
+
+<script>
+// --- CONFIGURATION ---
+const courseUrl = '/wp-content/uploads/custom-data/brandeis_courses.csv'; 
+const mappingUrl = '/wp-content/uploads/custom-data/departments_school_liaison.csv';
+const enrollmentUrl = '/wp-content/uploads/custom-data/enrollment_count_by_program.csv';
+const libInsightUrl = '/wp-json/brandeis/v1/libinsight-events?t=' + new Date().getTime(); 
+const libCalUrl = '/wp-json/brandeis/v1/libcal-events';
+
+// --- DATA CLEANUP MAPPING ---
+const departmentMapping = {
+    "envs": "Environmental Studies",
+    "fys": "First Year Seminar",
+	"uws": "First Year Seminar",
+	"university writing seminar": "First Year Seminar",
+	"university writing program": "First Year Seminar",
+	"first year seminars": "First Year Seminar",
+	"csem": "Composition Seminar",
+	"eng": "English",
+	"heller school": "Heller",
+	"maternal mental health research collaborative, institute for behavioral health, heller school": "Heller",
+	"heller ma in global sustainability policy and management": "Heller",
+	"heller ms in global health policy and management": "Heller",
+    "hist": "History",
+    "soc": "Sociology",
+    "anth": "Anthropology",
+    "biol": "Biology",
+    "chem": "Chemistry",
+    "mus": "Music",
+    "nejs": "Near Eastern & Judaic Studies",
+    "psych": "Psychology",
+    "qssr": "Quant. Social Science Methods",
+    "hsp": "Health: Science, Society, and Policy",
+    "lgls": "Legal Studies",
+    "bms": "Business"
+};
+
+// --- STATE ---
+let globalData = [];        // Course Data
+let schoolToDepts = {};     // School Mappings
+let globalLibData = [];     // Raw LibInsight Data
+let globalLibCalData = [];  // Raw LibCal Data (NEW)
+
+// --- INITIALIZATION ---
+function initAnalytics() {
+    if (typeof d3 === 'undefined') {
+        setTimeout(initAnalytics, 100);
+        return;
+    }
+
+    setInitialDateDefaults();
+
+    // 1. Fetch Standard Data
+    const fetchEnrollment = fetch(enrollmentUrl).then(response => {
+        if (!response.ok) throw new Error("Failed to load enrollment file");
+        const lastModHeader = response.headers.get('Last-Modified');
+        return response.text().then(text => ({ csvText: text, lastModified: lastModHeader }));
+    });
+    const fetchLibInsight = d3.json(libInsightUrl).catch(err => {
+        console.warn("LibInsight API Error:", err);
+        return { error: true, message: err.message };
+    });
+    
+    // 2. Fetch LibCal Data in PARALLEL CHUNKS (Current + 3 Previous Years)
+    const currentYear = new Date().getFullYear();
+    const yearsToFetch = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3];
+    
+    // Create an array of fetch requests
+    const libCalPromises = yearsToFetch.map(year => {
+        return d3.json(libCalUrl + '?year=' + year)
+            .then(data => {
+                // If specific year fetch fails, return empty to not break everything
+                if (data && !data.error && data.payload && data.payload.records) {
+                    return data.payload.records;
+                }
+                return []; 
+            })
+            .catch(err => {
+                console.warn(`Error fetching LibCal year ${year}:`, err);
+                return [];
+            });
+    });
+
+    // 3. Process All Data
+    Promise.all([
+        d3.text(courseUrl),
+        d3.text(mappingUrl),
+        fetchEnrollment,
+        fetchLibInsight,
+        Promise.all(libCalPromises) // Wait for all year fetches to finish
+    ]).then(([courseText, mappingText, enrollmentResult, libInsightData, libCalDataArrays]) => {
+        try {
+            // A. Process Course Data
+            processData(courseText, mappingText);
+            
+            // B. Process Ratio Data
+            const enrollData = d3.csvParse(enrollmentResult.csvText);
+            processRatioData(enrollData, enrollmentResult.lastModified);
+
+            // C. Process LibInsight Data
+            if (libInsightData && !libInsightData.error) {
+                if (libInsightData.payload && Array.isArray(libInsightData.payload.records)) {
+                    globalLibData = libInsightData.payload.records;
+                } else if (libInsightData.records && Array.isArray(libInsightData.records)) {
+                    globalLibData = libInsightData.records;
+                } else if (Array.isArray(libInsightData)) {
+                    globalLibData = libInsightData;
+                }
+            } else {
+                document.getElementById('events-chart').innerHTML = 
+                    '<div class="status-msg error-text">Error loading LibInsight data.</div>';
+            }
+
+            // D. Process LibCal Data (Merge chunks)
+            // libCalDataArrays is an array of arrays (one per year)
+            globalLibCalData = libCalDataArrays.flat();
+
+            if (globalLibCalData.length > 0) {
+                 updateLibCalViz();
+            } else {
+                 document.getElementById('libcal-chart').innerHTML = 
+                    '<div class="status-msg">No workshop data found for the last 4 years.</div>';
+            }
+            
+            // Draw charts with initial default dates
+            updateAllLibraryViz();
+
+        } catch (innerErr) {
+            console.error(innerErr);
+            showError(`Data Processing Error: ${innerErr.message}`);
+        }
+    }).catch(err => {
+        console.error(err);
+        showError(`File Load Error: ${err.message}.`);
+    });
+
+    // 4. Attach Listeners to Inputs
+    const startInput = document.getElementById('libStart');
+    const endInput = document.getElementById('libEnd');
+    const resetBtn = document.getElementById('libResetBtn');
+
+    const updateAllLibraryViz = () => {
+        updateLibInsightViz();
+        updateLibCalViz();
+    };
+
+    if(startInput) startInput.addEventListener('change', updateAllLibraryViz);
+    if(endInput) endInput.addEventListener('change', updateAllLibraryViz);
+    
+    if(resetBtn) resetBtn.addEventListener('click', () => {
+        setInitialDateDefaults(); 
+        updateAllLibraryViz();
+    });
+}
+
+// --- HELPER: Set Default Dates ---
+function setInitialDateDefaults() {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth(); // 0 = Jan, 11 = Dec
+
+    let startStr, endStr;
+    if (month < 6) {
+        startStr = (year - 1) + "-07-01";
+        endStr = (year - 1) + "-12-31";
+    } else {
+        startStr = year + "-01-01";
+        endStr = year + "-06-30";
+    }
+
+    const sInput = document.getElementById('libStart');
+    const eInput = document.getElementById('libEnd');
+    if (sInput) sInput.value = startStr;
+    if (eInput) eInput.value = endStr;
+}
+
+function showError(msg) {
+    const grids = document.querySelectorAll('.chart-card div[id$="-chart"]');
+    grids.forEach(div => div.innerHTML = `<div class="status-msg error-text">${msg}</div>`);
+    const tableDiv = document.getElementById('ratio-table-container');
+    if(tableDiv) tableDiv.innerHTML = `<div class="status-msg error-text">${msg}</div>`;
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAnalytics);
+} else {
+    initAnalytics();
+}
+
+// --- HELPER: Normalize Department Names ---
+function cleanDepartmentName(rawName) {
+    if (!rawName) return "Unassigned";
+    let clean = rawName.trim();
+    let key = clean.toLowerCase();
+    
+    if (departmentMapping[key]) {
+        return departmentMapping[key];
+    }
+    
+    if (clean.length > 2 && clean === clean.toLowerCase()) {
+         return clean.charAt(0).toUpperCase() + clean.slice(1);
+    }
+    
+    return clean;
+}
+
+// --- FUNCTION: Filter & Update LibInsight Chart (EXISTING) ---
+function updateLibInsightViz() {
+    const container = document.getElementById('events-chart');
+    if (!globalLibData || globalLibData.length === 0) {
+        if (container.innerHTML.indexOf("Loading") === -1) {
+            container.innerHTML = '<div class="status-msg">No event data available.</div>';
+        }
+        return;
+    }
+
+    // Get User Input
+    const startVal = document.getElementById('libStart').value;
+    const endVal = document.getElementById('libEnd').value;
+    
+    const startDate = startVal ? new Date(startVal) : null;
+    const endDate = endVal ? new Date(endVal) : null;
+
+    // Filter Logic
+    const filteredData = globalLibData.filter(record => {
+        const recordDateStr = record['_start_date']; 
+        if (!recordDateStr) return false; 
+        const rDate = new Date(recordDateStr);
+        if (startDate && rDate < startDate) return false;
+        if (endDate) {
+            const endLimit = new Date(endDate);
+            endLimit.setHours(23, 59, 59, 999); 
+            if (rDate > endLimit) return false;
+        }
+        return true;
+    });
+
+    if (filteredData.length === 0) {
+        container.innerHTML = '<div class="status-msg">No sessions found for this date range.</div>';
+        return;
+    }
+
+    processLibInsightData(filteredData);
+}
+
+// --- FUNCTION: Filter & Update LibCal Chart (NEW) ---
+function updateLibCalViz() {
+    const containerId = "#libcal-chart";
+    const container = document.querySelector(containerId);
+    if (!container) return;
+    
+    if (!globalLibCalData || globalLibCalData.length === 0) {
+        if (container.innerHTML.indexOf("Waiting") === -1 && container.innerHTML.indexOf("Loading") === -1) {
+            container.innerHTML = '<div class="status-msg">No workshop data available.</div>';
+        }
+        return;
+    }
+
+    const startStr = document.getElementById('libStart').value;
+    const endStr = document.getElementById('libEnd').value;
+    const startDate = startStr ? new Date(startStr) : new Date("2000-01-01");
+    const endDate = endStr ? new Date(endStr) : new Date();
+    endDate.setHours(23, 59, 59, 999);
+
+    const aggMap = new Map();
+    globalLibCalData.forEach(d => {
+        const eventDate = new Date(d.start);
+        if (eventDate < startDate || eventDate > endDate) return;
+
+        const registrations = parseInt(d.seats_taken) || 0;
+        let attendance = 0;
+        
+        if (d.attendance) {
+            attendance = (parseInt(d.attendance.in_person) || 0) + (parseInt(d.attendance.online) || 0);
+        }
+
+        if (d.category && Array.isArray(d.category)) {
+            d.category.forEach(cat => {
+                const name = cat.name;
+
+                // --- NEW FILTER: Exclude Writing Center ---
+                if (name.includes("Writing Center")) return;
+                // ------------------------------------------
+
+                if (!aggMap.has(name)) {
+                    aggMap.set(name, { category: name, registrations: 0, attendance: 0 });
+                }
+                const entry = aggMap.get(name);
+                entry.registrations += registrations;
+                entry.attendance += attendance;
+            });
+        }
+    });
+    const data = Array.from(aggMap.values()).sort((a, b) => b.registrations - a.registrations);
+
+    container.innerHTML = '';
+    if (data.length === 0) {
+        container.innerHTML = '<div class="status-msg">No workshops found for selected dates.</div>';
+        return;
+    }
+
+    const margin = { top: 20, right: 20, bottom: 100, left: 50 };
+    const width = container.offsetWidth - margin.left - margin.right;
+    const height = 500 - margin.top - margin.bottom;
+    
+    const svg = d3.select(containerId)
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+        
+    const x0 = d3.scaleBand()
+        .domain(data.map(d => d.category))
+        .rangeRound([0, width])
+        .paddingInner(0.1);
+        
+    const x1 = d3.scaleBand()
+        .domain(['registrations', 'attendance'])
+        .rangeRound([0, x0.bandwidth()])
+        .padding(0.05);
+        
+    const y = d3.scaleLinear()
+        .domain([0, d3.max(data, d => Math.max(d.registrations, d.attendance)) * 1.1])
+        .rangeRound([height, 0]);
+        
+    const color = d3.scaleOrdinal()
+        .domain(['registrations', 'attendance'])
+        .range(['#003478', '#34b4e3']);
+        
+    const categoryGroup = svg.selectAll(".cat-group")
+        .data(data)
+        .join("g")
+        .attr("class", "cat-group")
+        .attr("transform", d => `translate(${x0(d.category)},0)`);
+        
+    categoryGroup.selectAll("rect")
+        .data(d => ['registrations', 'attendance'].map(key => ({ key, value: d[key] })))
+        .join("rect")
+        .attr("x", d => x1(d.key))
+        .attr("y", d => y(d.value))
+        .attr("width", x1.bandwidth())
+        .attr("height", d => height - y(d.value))
+        .attr("fill", d => color(d.key));
+        
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x0))
+        .selectAll("text")
+        .attr("transform", "translate(-10,0)rotate(-45)")
+        .style("text-anchor", "end")
+        .style("font-size", "11px");
+        
+    svg.append("g")
+        .call(d3.axisLeft(y).ticks(null, "s"));
+
+    const tooltip = d3.select("body").selectAll(".chart-tooltip").data([1]).join("div").attr("class", "chart-tooltip");
+    
+    categoryGroup.selectAll("rect")
+        .on("mouseover", (e, d) => {
+            const catName = d3.select(e.target.parentNode).datum().category;
+            const label = d.key === 'registrations' ? 'Registrations' : 'Attendance';
+            tooltip.style("opacity", 1)
+                .html(`<strong>${catName}</strong><br>${label}: ${d.value}`)
+                .style("left", (e.pageX + 10) + "px")
+                .style("top", (e.pageY - 28) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+}
+
+// --- AGGREGATOR (LibInsight) ---
+function processLibInsightData(recordsArray) {
+    const container = document.getElementById('events-chart');
+    if (!container) return;
+    const deptMap = new Map();
+    const allSessionTypes = new Set();
+    
+    recordsArray.forEach(record => {
+        const rawDept = record["Department/ Group/Program"] || record["Department/Group/Program"] || "Unassigned";
+        const deptName = cleanDepartmentName(rawDept);
+
+        let type = "General";
+        const typeRaw = record["Type of session"];
+        if (Array.isArray(typeRaw) && typeRaw.length > 0) {
+            type = typeRaw[0].trim();
+        } else if (typeof typeRaw === "string") {
+            type = typeRaw.trim();
+        }
+        
+        allSessionTypes.add(type);
+
+        if (!deptMap.has(deptName)) {
+            deptMap.set(deptName, { dept: deptName, total: 0 });
+        }
+        
+        const entry = deptMap.get(deptName);
+        if (!entry[type]) entry[type] = 0;
+        entry[type]++;
+        entry.total++;
+    });
+    
+    let processed = Array.from(deptMap.values())
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 20);
+        
+    const keys = Array.from(allSessionTypes).sort();
+
+    processed.forEach(d => {
+        keys.forEach(k => {
+            if (!d[k]) d[k] = 0;
+        });
+    });
+
+    if (processed.length === 0) {
+        container.innerHTML = '<div class="status-msg">No records found after processing.</div>';
+        return;
+    }
+
+    drawEventsChart(processed, keys, container);
+}
+
+// --- NEW CHART: Stacked Bar Chart (Horizontal) ---
+function drawEventsChart(data, keys, containerElement) {
+    if (!containerElement || containerElement.clientWidth === 0) return;
+    const {width, height, svg} = setupCanvas(containerElement);
+    
+    const margin = {top: 40, right: 20, bottom: 50, left: 200};
+    svg.attr("transform", `translate(${margin.left},${margin.top})`);
+    
+    const innerWidth = Math.max(0, width - (margin.left - 50));
+    const innerHeight = height;
+    
+    const y = d3.scaleBand()
+        .domain(data.map(d => d.dept))
+        .range([0, innerHeight])
+        .padding(0.2);
+        
+    const maxVal = d3.max(data, d => d.total) || 10;
+    const x = d3.scaleLinear()
+        .domain([0, maxVal])
+        .nice()
+        .range([0, innerWidth]);
+        
+    const color = d3.scaleOrdinal()
+        .domain(keys)
+        .range(["#003478", "#D41159", "#4575b4", "#76b7b2", "#e15759", "#edc949", "#59a14f"]);
+        
+    const stackedData = d3.stack().keys(keys)(data);
+
+    const layer = svg.selectAll("g.layer")
+        .data(stackedData)
+        .join("g")
+        .attr("class", "layer")
+        .attr("fill", d => color(d.key));
+        
+    layer.selectAll("rect")
+        .data(d => d)
+        .join("rect")
+        .attr("y", d => y(d.data.dept))
+        .attr("x", d => x(d[0])) 
+        .attr("height", y.bandwidth())
+        .attr("width", d => {
+            const w = x(d[1]) - x(d[0]);
+            return (isNaN(w) || w < 0) ? 0 : w;
+        });
+
+    const xAxis = d3.axisBottom(x).ticks(5);
+    const yAxis = d3.axisLeft(y);
+    
+    svg.append("g")
+        .attr("transform", `translate(0,${innerHeight})`)
+        .call(xAxis)
+        .attr("class", "axis-text");
+        
+    svg.append("g")
+        .call(yAxis)
+        .attr("class", "axis-text")
+        .selectAll(".tick text")
+        .style("text-anchor", "end")
+        .style("font-size", "11px");
+        
+    svg.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", innerHeight + 35)
+        .style("text-anchor", "middle")
+        .style("font-size", "12px")
+        .style("fill", "#666")
+        .text("Number of Sessions");
+        
+    const tooltip = d3.select("body").selectAll(".chart-tooltip").data([1]).join("div").attr("class", "chart-tooltip");
+    
+    layer.selectAll("rect")
+        .on("mouseover", (e, d) => {
+            const sessionType = d3.select(e.target.parentNode).datum().key;
+            const count = d[1] - d[0];
+            const total = d.data.total;
+            
+            tooltip.style("opacity", 1)
+                .html(`<strong>${d.data.dept}</strong><br>
+                       Type: ${sessionType}<br>
+                       Sessions: ${count}<br>
+                       Total Dept Sessions: ${total}`)
+                .style("left", (e.pageX + 10) + "px")
+                .style("top", (e.pageY - 28) + "px");
+        })
+        .on("mouseout", () => tooltip.style("opacity", 0));
+        
+    const legendContainer = document.createElement('div');
+    legendContainer.className = 'legend-container';
+    legendContainer.style.marginTop = "20px";
+    
+    keys.forEach(k => {
+        const item = document.createElement("div");
+        item.className = "legend-item";
+        item.innerHTML = `<div class="legend-color" style="background:${color(k)}"></div><span>${k}</span>`;
+        legendContainer.appendChild(item);
+    });
+    containerElement.appendChild(legendContainer);
+}
+
+// --- FUNCTION: Process & Render Ratio Table ---
+function processRatioData(data, lastModifiedStr) {
+    const container = document.getElementById('ratio-table-container');
+    const dateTag = document.getElementById('ratio-last-updated');
+    if(!container) return;
+    if (lastModifiedStr) {
+        const dateObj = new Date(lastModifiedStr);
+        if (!isNaN(dateObj)) {
+            dateTag.innerText = `Last Updated: ${dateObj.toLocaleDateString()}`;
+            dateTag.style.display = 'block';
+        }
+    }
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="status-msg">No enrollment data available.</div>';
+        return;
+    }
+    const headers = data.columns;
+    if (!headers || headers.length === 0) return;
+    const lastColName = headers[headers.length - 1]; 
+    const schoolStats = {};
+    
+    data.forEach(row => {
+        const school = (row.School || "Unassigned").trim();
+        if (school === "Unassigned") return;
+        const studentCount = parseInt(row[lastColName] || 0);
+        const liaisons = (row.Liaison || "").split(/[;,]/).map(s => s.trim()).filter(s => s);
+        if (!schoolStats[school]) schoolStats[school] = { students: 0, uniqueLiaisons: new Set() };
+        schoolStats[school].students += studentCount;
+        liaisons.forEach(l => { if (l.toLowerCase() !== "unassigned") schoolStats[school].uniqueLiaisons.add(l); });
+    });
+    
+    const tableData = Object.keys(schoolStats).map(school => {
+        const stats = schoolStats[school];
+        let totalFTE = 0;
+        stats.uniqueLiaisons.forEach(name => {
+            totalFTE += (name === "Jason Bernard") ? 0.2 : 1.0;
+        });
+        return {
+            school: school,
+            students: stats.students,
+            fte: totalFTE.toFixed(1).replace('.0', ''),
+            ratio: totalFTE > 0 ? (stats.students / totalFTE) : 0
+        };
+    });
+    
+    tableData.sort((a, b) => b.ratio - a.ratio);
+    let html = `<table class="analytics-table"><thead><tr><th>School</th><th style="text-align:right;">Total Declared Students</th><th style="text-align:right;">Liaison FTE</th><th style="text-align:right;">Student : Liaison Ratio</th></tr></thead><tbody>`;
+    tableData.forEach(row => {
+        html += `<tr><td>${row.school}</td><td style="text-align:right;">${row.students.toLocaleString()}</td><td style="text-align:right;">${row.fte}</td><td style="text-align:right;" class="ratio-highlight">${row.ratio.toFixed(1)}:1</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    container.innerHTML = html;
+}
+
+// --- DATA PROCESSING (Legacy CSV Charts) ---
+function processData(courseCsvText, mappingCsvText) {
+    const mappingData = d3.csvParse(mappingCsvText);
+    const schoolMapping = {};
+    schoolToDepts = {};
+    mappingData.forEach(row => {
+        const dept = row['Academic Units']; 
+        const school = row['School'];
+        if(dept && school) {
+            schoolMapping[dept] = school;
+            if(!schoolToDepts[school]) schoolToDepts[school] = new Set();
+            schoolToDepts[school].add(dept);
+        }
+    });
+
+    const data = d3.csvParse(courseCsvText);
+    if (data.length === 0) throw new Error("Course file is empty.");
+
+    const keys = data.columns;
+    const modeKey = keys.find(k => k.match(/Mode/i));
+    const numberKey = keys.find(k => k.match(/Course Number|Number/i));
+    const enrollKey = keys.find(k => k.match(/Enrollment|Enrolled/i));
+    const dateKey = keys.find(k => k.match(/Start Date/i));
+    const deptKey = keys.find(k => k.match(/Academic Unit|Department/i));
+    const statusKey = keys.find(k => k.match(/Section Status|Status/i));
+    const formatKey = keys.find(k => k.match(/Instructional Format|Format/i));
+    
+    const statusBlacklist = ["canceled", "canceled: preliminary", "preliminary"];
+    const formatBlacklist = ["clinical", "independent study", "internship"];
+
+    globalData = data.filter(d => {
+        if (statusKey) {
+            const status = (d[statusKey] || "").trim().toLowerCase();
+            if (statusBlacklist.includes(status)) return false;
+        }
+        if (formatKey) {
+            const format = (d[formatKey] || "").trim().toLowerCase();
+            if (formatBlacklist.includes(format)) return false;
+        }
+        return true;
+    }).map(d => {
+        const date = new Date(d[dateKey]); 
+        const year = (!isNaN(date)) ? date.getFullYear() : 0;
+        const month = (!isNaN(date)) ? date.getMonth() + 1 : 0;
+        let semester = "Unknown";
+        let sort = 0;
+        if (year > 2000) { 
+            if(month >= 1 && month <= 5) { semester = `Spring ${year}`; sort = year*10+1; }
+            else if(month >= 6 && month <= 7) { semester = `Summer ${year}`; sort = year*10+2; }
+            else { semester = `Fall ${year}`; sort = year*10+3; }
+        }
+        const match = (d[numberKey] || "").match(/(\d+)/); 
+        const courseNum = match ? parseInt(match[0]) : 0;
+        let level = "Unknown";
+        if(courseNum > 0 && courseNum < 100) level = "Undergraduate (1-99)";
+        else if(courseNum >= 100 && courseNum < 200) level = "Upper UG / Grad (100-199)";
+        else if(courseNum >= 200) level = "Graduate (200+)";
+        let rawMode = (d[modeKey] || "").trim();
+        let mode = "Unknown";
+        if (/In-?Person/i.test(rawMode)) mode = "In Person";
+        else if (/Online/i.test(rawMode) || /Remote/i.test(rawMode)) mode = "Online";
+        else if (/Hybrid/i.test(rawMode)) mode = "Hybrid";
+        if (mode === "Unknown" && rawMode.length > 2) mode = "Other";
+        return {
+            enrolled: +d[enrollKey] || 0,
+            semester: semester,
+            semesterSort: sort,
+            level: level,
+            mode: mode,
+            dept: d[deptKey],
+            school: schoolMapping[d[deptKey]] || "Unassigned"
+        };
+    }).filter(d => d.semesterSort > 20140).sort((a,b) => a.semesterSort - b.semesterSort);
+
+    setupFilters();
+    updateDashboard();
+}
+
+function setupFilters() {
+    const schoolSelect = document.getElementById('schoolSelect');
+    const deptSelect = document.getElementById('deptSelect');
+    const schools = Object.keys(schoolToDepts).sort();
+    
+    schools.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.innerText = s;
+        schoolSelect.appendChild(opt);
+    });
+    
+    schoolSelect.addEventListener('change', () => {
+        const selectedSchool = schoolSelect.value;
+        deptSelect.innerHTML = '<option value="All">All Departments</option>';
+        let deptsToShow = new Set();
+        if (selectedSchool === "All") {
+            Object.values(schoolToDepts).forEach(set => set.forEach(d => deptsToShow.add(d)));
+        } else {
+            if(schoolToDepts[selectedSchool]) deptsToShow = schoolToDepts[selectedSchool];
+        }
+        Array.from(deptsToShow).sort().forEach(d => {
+            const opt = document.createElement('option');
+            opt.value = d;
+            opt.innerText = d;
+            deptSelect.appendChild(opt);
+        });
+        updateDashboard();
+    });
+    
+    deptSelect.addEventListener('change', updateDashboard);
+    schoolSelect.dispatchEvent(new Event('change'));
+}
+
+function updateDashboard() {
+    const selectedSchool = document.getElementById('schoolSelect').value;
+    const selectedDept = document.getElementById('deptSelect').value;
+    const filteredData = globalData.filter(d => {
+        return (selectedSchool === "All" || d.school === selectedSchool) &&
+               (selectedDept === "All" || d.dept === selectedDept);
+    });
+    
+    if(filteredData.length === 0) { showError("No data matches selected filters."); return; }
+    drawLevelChart(filteredData);
+    drawModeChart(filteredData);
+    drawMedianIQRChart(filteredData);
+    drawComboChart(filteredData);
+}
+
+// --- STANDARD CHARTS (Level, Mode, Median, Combo) ---
+function setupCanvas(container) {
+    const margin = {top: 20, right: 20, bottom: 80, left: 50};
+    container.innerHTML = ""; 
+    const width = container.clientWidth - margin.left - margin.right;
+    const height = container.clientHeight - margin.top - margin.bottom;
+    const svg = d3.select(container).append("svg")
+        .attr("viewBox", `0 0 ${container.clientWidth} ${container.clientHeight}`)
+        .attr("preserveAspectRatio", "xMidYMid meet")
+        .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+    return {width, height, svg};
+}
+
+function drawLevelChart(data) {
+    const container = document.getElementById('level-chart');
+    if(!container) return;
+    const {width, height, svg} = setupCanvas(container);
+    const grouped = d3.rollup(data, v => v.length, d => d.semesterSort, d => d.level);
+    const semesters = Array.from(new Set(data.map(d => JSON.stringify({l:d.semester, s:d.semesterSort})))).map(JSON.parse).sort((a,b) => a.s - b.s);
+    const keys = ["Undergraduate (1-99)", "Upper UG / Grad (100-199)", "Graduate (200+)"];
+    
+    const stackData = semesters.map(s => {
+        const row = { semester: s.l };
+        const entry = grouped.get(s.s);
+        keys.forEach(k => row[k] = (entry ? entry.get(k) : 0) || 0);
+        return row;
+    });
+    
+    const x = d3.scaleBand().domain(stackData.map(d => d.semester)).range([0, width]).padding(0.2);
+    const y = d3.scaleLinear().domain([0, d3.max(stackData, d => keys.reduce((acc, k) => acc + d[k], 0))]).nice().range([height, 0]);
+    const color = d3.scaleOrdinal().domain(keys).range(["#003478", "#6CACE4", "#B9975B"]);
+    
+    svg.append("g").selectAll("g").data(d3.stack().keys(keys)(stackData)).join("g").attr("fill", d => color(d.key))
+        .selectAll("rect").data(d => d).join("rect").attr("x", d => x(d.data.semester)).attr("y", d => y(d[1])).attr("height", d => y(d[0]) - y(d[1])).attr("width", x.bandwidth());
+        
+    svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x)).selectAll("text").style("text-anchor", "end").attr("transform", "rotate(-45)").attr("dx", "-.8em").attr("dy", ".15em");
+    svg.append("g").call(d3.axisLeft(y).ticks(5));
+    createLegend("level-legend", keys, color);
+}
+
+function drawModeChart(data) {
+    const container = document.getElementById('mode-chart');
+    if(!container) return;
+    const {width, height, svg} = setupCanvas(container);
+    const keys = ["In Person", "Hybrid", "Online"];
+    const grouped = d3.rollup(data, v => v.length, d => d.semesterSort, d => d.mode);
+    const semesters = Array.from(new Set(data.map(d => JSON.stringify({l:d.semester, s:d.semesterSort})))).map(JSON.parse).sort((a,b) => a.s - b.s);
+    
+    const stackData = semesters.map(s => {
+        const row = { semester: s.l };
+        const entry = grouped.get(s.s);
+        let total = 0;
+        keys.forEach(k => { const val = (entry ? entry.get(k) : 0) || 0; row[k] = val; total += val; });
+        keys.forEach(k => row[k] = total ? (row[k]/total)*100 : 0);
+        return row;
+    });
+    
+    const x = d3.scalePoint().domain(stackData.map(d => d.semester)).range([0, width]);
+    const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
+    const color = d3.scaleOrdinal().domain(keys).range(["#003478", "#A4D65E", "#D14124"]);
+    
+    const area = d3.area().x(d => x(d.data.semester)).y0(d => y(d[0])).y1(d => y(d[1])).curve(d3.curveMonotoneX);
+    svg.append("g").selectAll("path").data(d3.stack().keys(keys)(stackData)).join("path").attr("d", area).attr("fill", d => color(d.key)).attr("opacity", 0.9);
+    
+    svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x)).selectAll("text").style("text-anchor", "end").attr("transform", "rotate(-45)").attr("dx", "-.8em").attr("dy", ".15em");
+    svg.append("g").call(d3.axisLeft(y).ticks(5).tickFormat(d => d + "%"));
+    createLegend("mode-legend", keys, color);
+}
+
+function drawMedianIQRChart(data) {
+    const container = document.getElementById('median-chart');
+    if(!container) return;
+    const {width, height, svg} = setupCanvas(container);
+    
+    // Process Data
+    const stats = d3.groups(data, d => d.semesterSort).map(([sort, records]) => {
+        const values = records.map(r => r.enrolled).sort((a,b) => a - b);
+        return { 
+            semester: records[0].semester, 
+            median: d3.median(values), 
+            q1: d3.quantile(values, 0.25), 
+            q3: d3.quantile(values, 0.75) 
+        };
+    });
+
+    // Scales
+    const x = d3.scalePoint().domain(stats.map(d => d.semester)).range([0, width]).padding(0.5);
+    const y = d3.scaleLinear().domain([0, d3.max(stats, d => d.q3) * 1.1]).range([height, 0]);
+
+    // Area & Line Generators
+    const area = d3.area().x(d => x(d.semester)).y0(d => y(d.q1)).y1(d => y(d.q3)).curve(d3.curveMonotoneX);
+    const line = d3.line().x(d => x(d.semester)).y(d => y(d.median)).curve(d3.curveMonotoneX);
+
+    // Draw Area (IQR)
+    svg.append("path")
+       .datum(stats)
+       .attr("fill", "#003478")
+       .attr("opacity", 0.15)
+       .attr("d", area);
+
+    // Draw Line (Median)
+    svg.append("path")
+       .datum(stats)
+       .attr("fill", "none")
+       .attr("stroke", "#003478")
+       .attr("stroke-width", 3)
+       .attr("d", line);
+
+    // --- NEW: Labels & Interaction ---
+    const tooltip = d3.select("body").selectAll(".chart-tooltip").data([1]).join("div").attr("class", "chart-tooltip");
+
+    // Interactive Groups (Point + Label)
+    const pointGroup = svg.selectAll(".point-group")
+        .data(stats)
+        .join("g")
+        .attr("transform", d => `translate(${x(d.semester)},${y(d.median)})`);
+
+    // Draw Points
+    pointGroup.append("circle")
+        .attr("r", 5)
+        .attr("fill", "#003478")
+        .attr("stroke", "#fff")
+        .attr("stroke-width", 2);
+
+    // Draw Labels (Unobtrusive)
+    pointGroup.append("text")
+        .text(d => Math.round(d.median))
+        .attr("y", -10)
+        .attr("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("fill", "#003478")
+        .style("font-weight", "600")
+        .style("pointer-events", "none"); 
+
+    // Add Interaction
+    pointGroup.on("mouseover", (event, d) => {
+        d3.select(event.currentTarget).select("circle").attr("r", 7);
+        tooltip.style("opacity", 1)
+               .html(`<strong>${d.semester}</strong><br/>
+                      Median Size: ${d3.format(".1f")(d.median)}<br/>
+                      <span style="font-size:0.9em; color:#666;">Middle 50% (IQR): ${Math.round(d.q1)} - ${Math.round(d.q3)}</span>`)
+               .style("left", (event.pageX + 10) + "px")
+               .style("top", (event.pageY - 28) + "px");
+    })
+    .on("mouseout", (event) => {
+        d3.select(event.currentTarget).select("circle").attr("r", 5); 
+        tooltip.style("opacity", 0);
+    });
+
+    // Axes
+    svg.append("g").attr("transform", `translate(0,${height})`)
+       .call(d3.axisBottom(x))
+       .selectAll("text")
+       .style("text-anchor", "end")
+       .attr("transform", "rotate(-45)")
+       .attr("dx", "-.8em")
+       .attr("dy", ".15em");
+       
+    svg.append("g").call(d3.axisLeft(y).ticks(5));
+}
+
+function drawComboChart(data) {
+    const container = document.getElementById('combo-chart');
+    if(!container) return;
+    const {width, height, svg} = setupCanvas(container);
+    
+    // Process Data
+    const stats = d3.groups(data, d => d.semesterSort).map(([sort, records]) => ({
+        semester: records[0].semester, 
+        count: records.length, 
+        median: d3.median(records, r => r.enrolled)
+    }));
+
+    // Scales
+    const x = d3.scaleBand().domain(stats.map(d => d.semester)).range([0, width]).padding(0.3);
+    const yLeft = d3.scaleLinear().domain([0, d3.max(stats, d => d.count)*1.1]).range([height, 0]); // Courses
+    const yRight = d3.scaleLinear().domain([0, d3.max(stats, d => d.median)*1.5]).range([height, 0]); // Median
+
+    const tooltip = d3.select("body").selectAll(".chart-tooltip").data([1]).join("div").attr("class", "chart-tooltip");
+
+    // --- BARS (Volume) ---
+    const bars = svg.selectAll(".bar")
+        .data(stats)
+        .join("rect")
+        .attr("class", "bar")
+        .attr("fill", "#e0e0e0")
+        .attr("x", d => x(d.semester))
+        .attr("width", x.bandwidth())
+        .attr("y", d => yLeft(d.count))
+        .attr("height", d => height - yLeft(d.count));
+
+    // Bar Labels
+    svg.selectAll(".label-bar")
+        .data(stats)
+        .join("text")
+        .text(d => d.count)
+        .attr("x", d => x(d.semester) + x.bandwidth()/2)
+        .attr("y", d => yLeft(d.count) - 5)
+        .attr("text-anchor", "middle")
+        .style("font-size", "10px")
+        .style("fill", "#888");
+
+    // Bar Interaction
+    bars.on("mouseover", (event, d) => {
+        d3.select(event.currentTarget).attr("fill", "#ccc");
+        tooltip.style("opacity", 1)
+               .html(`<strong>${d.semester}</strong><br/>Courses Offered: ${d.count}`)
+               .style("left", (event.pageX + 10) + "px")
+               .style("top", (event.pageY - 28) + "px");
+    }).on("mouseout", (event) => {
+        d3.select(event.currentTarget).attr("fill", "#e0e0e0");
+        tooltip.style("opacity", 0);
+    });
+
+    // --- LINE (Capacity) ---
+    const line = d3.line()
+        .x(d => x(d.semester) + x.bandwidth()/2)
+        .y(d => yRight(d.median));
+
+    svg.append("path")
+        .datum(stats)
+        .attr("fill", "none")
+        .attr("stroke", "#003478")
+        .attr("stroke-width", 3)
+        .attr("d", line);
+
+    // Line Points & Labels Group
+    const dots = svg.selectAll(".dot-group")
+        .data(stats)
+        .join("g")
+        .attr("transform", d => `translate(${x(d.semester) + x.bandwidth()/2}, ${yRight(d.median)})`);
+
+    // The Dot
+    dots.append("circle")
+        .attr("r", 4)
+        .attr("fill", "#003478")
+        .attr("stroke", "white")
+        .attr("stroke-width", 1.5);
+
+    // The Label (Median)
+    dots.append("text")
+        .text(d => d3.format(".0f")(d.median))
+        .attr("y", -8)
+        .attr("text-anchor", "middle")
+        .style("font-size", "11px")
+        .style("font-weight", "bold")
+        .style("fill", "#003478")
+        .style("text-shadow", "0px 0px 4px white"); 
+
+    // Line Interaction
+    dots.on("mouseover", (event, d) => {
+        d3.select(event.currentTarget).select("circle").attr("r", 6);
+        tooltip.style("opacity", 1)
+               .html(`<strong>${d.semester}</strong><br/>Median Class Size: ${d3.format(".1f")(d.median)}`)
+               .style("left", (event.pageX + 10) + "px")
+               .style("top", (event.pageY - 28) + "px");
+    }).on("mouseout", (event) => {
+        d3.select(event.currentTarget).select("circle").attr("r", 4);
+        tooltip.style("opacity", 0);
+    });
+
+    // Axes
+    svg.append("g").attr("transform", `translate(0,${height})`)
+       .call(d3.axisBottom(x))
+       .selectAll("text")
+       .style("text-anchor", "end")
+       .attr("transform", "rotate(-45)")
+       .attr("dx", "-.8em")
+       .attr("dy", ".15em");
+       
+    // Left Axis (Count)
+    svg.append("g").call(d3.axisLeft(yLeft).ticks(5))
+       .append("text").attr("transform", "rotate(-90)").attr("y", 15).attr("dy", ".71em")
+       .style("text-anchor", "end").style("fill", "#888").text("Courses");
+
+    // Right Axis (Median)
+    svg.append("g").attr("transform", `translate(${width},0)`)
+       .call(d3.axisRight(yRight).ticks(5))
+       .append("text").attr("transform", "rotate(-90)").attr("y", -10).attr("dy", ".71em")
+       .style("text-anchor", "end").style("fill", "#003478").text("Median Size");
+}
+
+function createLegend(id, keys, colorScale) {
+    const container = document.getElementById(id);
+    if(!container) return;
+    container.innerHTML = "";
+    keys.forEach(k => {
+        const item = document.createElement("div");
+        item.className = "legend-item";
+        item.innerHTML = `<div class="legend-color" style="background:${colorScale(k)}"></div><span>${k}</span>`;
+        container.appendChild(item);
+    });
+}
+</script>
