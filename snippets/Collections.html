@@ -1,0 +1,814 @@
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+  /* --- Layout & Typography --- */
+  .analytics-container { 
+      max-width: 100%;
+      margin: 0 auto; 
+      font-family: "Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif; 
+      color: #333;
+  }
+  
+  /* --- Header --- */
+  .analytics-header {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #e1e4e8;
+  }
+  .analytics-intro p { margin: 0; color: #666; font-size: 1rem; max-width: 800px; }
+    
+  /* --- Section Header Text --- */
+  .section-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #003478; /* Brandeis Blue */           
+      margin-top: 40px;
+      margin-bottom: 15px;      
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e1e4e8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+  }
+
+  /* --- Grid Layout --- */
+  .analytics-grid { 
+     display: grid;
+     grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+     gap: 30px;
+     margin-bottom: 30px;
+  }
+  .full-width { grid-column: 1 / -1; }
+
+  /* --- Cards --- */
+  .chart-card { 
+     background: #fff; 
+     padding: 25px;
+     border-radius: 8px; 
+     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+     border-top: 4px solid #003478;
+     display: flex; 
+     flex-direction: column; 
+     min-height: 400px; 
+     position: relative;
+  }
+
+  .chart-card-header h2 { 
+      color: #003478;
+      font-size: 1.2rem; 
+      margin: 0 0 20px 0;
+      font-weight: 700;
+  }
+
+  /* --- KPI Cards (Top Row) --- */
+  .kpi-row {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+  }
+  .kpi-card {
+      flex: 1;
+      min-width: 200px;
+      background: #f8f9fa;
+      border-left: 5px solid #003478;
+      padding: 20px;
+      border-radius: 4px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+  .kpi-label { font-size: 0.85rem; text-transform: uppercase; color: #666; font-weight: 600; margin-bottom: 5px; }
+  .kpi-value { font-size: 2rem; color: #333; font-weight: 700; }
+  .kpi-sub { font-size: 0.9rem; color: #666; margin-top: 5px; }
+  
+  /* Alert colors for budget */
+  .kpi-card.alert-good { border-left-color: #28a745; }
+  .kpi-card.alert-warning { border-left-color: #ffc107; }
+  .kpi-card.alert-danger { border-left-color: #dc3545; }
+  .kpi-card.alert-info { border-left-color: #17a2b8; }
+
+  /* --- D3 Tooltip --- */
+  .d3-tooltip {
+      position: absolute;
+      text-align: left;
+      padding: 10px;
+      font: 12px sans-serif;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #ddd;
+      color: #333;
+      border-radius: 4px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 10;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  .d3-tooltip strong { display: block; margin-bottom: 5px; color: #003478; border-bottom: 1px solid #eee; padding-bottom: 3px;}
+
+  /* --- Utilities --- */
+  .loading-msg { text-align: center; padding: 40px; color: #666; font-style: italic; }
+  .status-msg { display: flex; align-items: center; justify-content: center; height: 100%; color: #777; background: #f9f9f9; border: 1px dashed #ddd; }
+  
+  /* Chart container within card */
+  .d3-chart-container {
+      flex-grow: 1;
+      width: 100%;
+      height: 100%;
+      min-height: 300px;
+      position: relative;
+  }
+</style>
+
+<div class="analytics-container">
+    
+    <div class="analytics-header">
+        <div class="analytics-intro">
+            <p>Real-time overview of library collections expenditures, remaining budget, and historical trends.</p>
+        </div>
+    </div>
+    
+    <h3 class="section-title" id="budget-section-title">Budget Overview</h3>
+    
+    <div class="kpi-row" id="kpi-container">
+        <div class="kpi-card">
+            <div class="kpi-label">Total Budget</div>
+            <div class="kpi-value">$4,246,000</div>
+            <div class="kpi-sub" id="kpi-fy-label">Fiscal Year Loading...</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">YTD Expenditure</div>
+            <div class="kpi-value" id="kpi-spent">Loading...</div>
+            <div class="kpi-sub">Includes accruals from previous FY</div>
+        </div>
+        <div class="kpi-card" id="kpi-remaining-card">
+            <div class="kpi-label">Remaining Funds</div>
+            <div class="kpi-value" id="kpi-remaining">Loading...</div>
+            <div class="kpi-sub" id="kpi-percent">0% Available</div>
+        </div>
+    </div>
+
+    <div class="analytics-grid">
+        <div class="chart-card full-width">
+            <div class="chart-card-header"><h2>Current Year Spend by School/Division</h2></div>
+            <div id="school-chart" class="d3-chart-container"></div>
+        </div>
+    </div>
+
+    <h3 class="section-title">General Collections Profile -- Physical Items</h3>
+    
+    <div class="analytics-grid">
+        <div class="chart-card full-width">
+            <div class="chart-card-header"><h2>Collection Strength vs. Usage (Items in Repository vs. Loans)</h2></div>
+            <div id="usage-scatter-chart" class="d3-chart-container" style="height: 500px;"></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    const API_BASE = '/wp-json/brandeis/v1/collections-expenditures';
+    const USAGE_API = '/wp-json/brandeis/v1/collection-usage-profile'; // New API Endpoint
+    const BUDGET_LIMIT = 4246000;
+    const ARCHIVES_JSON_PATH = '/wp-content/uploads/custom-data/accession_subjects_names_classifications_list_report_2026-01-15.json';
+    
+    // --- ACADEMIC STRUCTURE MAPPING ---
+    const schoolMapping = {
+        // ... (mapping continues)
+        'Classical Studies': 'Arts, Humanities, & Culture',
+        'Classical and Early Mediterranean Studies': 'Arts, Humanities, & Culture',
+        'Comparative Literature and Culture': 'Arts, Humanities, & Culture',
+        'Comparative Literature and Culture Program': 'Arts, Humanities, & Culture',
+        'Creativity, the Arts, and Social Transformation Program': 'Arts, Humanities, & Culture',
+        'East Asian Studies': 'Arts, Humanities, & Culture',
+        'East Asian Studies Program': 'Arts, Humanities, & Culture',
+        'English and UWS': 'Arts, Humanities, & Culture',
+        'European Cultural Studies': 'Arts, Humanities, & Culture',
+        'Film, Television and Interactive Media': 'Arts, Humanities, & Culture',
+        'Fine Arts': 'Arts, Humanities, & Culture',
+        'German, Russian, and Asian Languages and Literatures': 'Arts, Humanities, & Culture',
+        'Hebrew Language and Literature': 'Arts, Humanities, & Culture',
+        'Islamic and Middle Eastern Studies': 'Arts, Humanities, & Culture',
+        'Italian Studies': 'Arts, Humanities, & Culture',
+        'Latin American and Latino Studies': 'Arts, Humanities, & Culture',
+        'Latin American, Caribbean and Latinx Studies Program': 'Arts, Humanities, & Culture',
+        'Medieval and Renaissance Studies': 'Arts, Humanities, & Culture',
+        'Music': 'Arts, Humanities, & Culture',
+        'Near-East and Judaic Studies': 'Arts, Humanities, & Culture',
+        'Philosophy': 'Arts, Humanities, & Culture',
+        'Romance Studies': 'Arts, Humanities, & Culture',
+        'Theater Arts': 'Arts, Humanities, & Culture',
+        'Prepaid School of Arts, Humanities and Culture': 'Arts, Humanities, & Culture',
+
+        // --- School of Business and Economics ---
+        'Business': 'Business & Economics',
+        'Economics': 'Business & Economics',
+        'International Business School': 'Business & Economics',
+        'Prepaid School of Business and Economics': 'Business & Economics',
+
+        // --- School of Science, Engineering, and Technology ---
+        'Biochemistry': 'Science, Engineering, & Tech',
+        'Biological Physics': 'Science, Engineering, & Tech',
+        'Biology': 'Science, Engineering, & Tech',
+        'Chemistry': 'Science, Engineering, & Tech',
+        'Computer Science': 'Science, Engineering, & Tech',
+        'Engineering': 'Science, Engineering, & Tech',
+        'Engineering Science': 'Science, Engineering, & Tech',
+        'Environmental Studies': 'Science, Engineering, & Tech',
+        'Language and Linguistics': 'Science, Engineering, & Tech',
+        'Linguistics and Computational Linguistics': 'Science, Engineering, & Tech',
+        'Mathematics': 'Science, Engineering, & Tech',
+        'Neuroscience': 'Science, Engineering, & Tech',
+        'Physics': 'Science, Engineering, & Tech',
+        'Psychology': 'Science, Engineering, & Tech',
+        'Quantitative Biology': 'Science, Engineering, & Tech',
+        'Prepaid School of Science, Engineering and Technology': 'Science, Engineering, & Tech',
+
+        // --- School of Social Sciences and Social Policy ---
+        'African and African American Studies': 'Social Sciences & Policy',
+        'American Studies': 'Social Sciences & Policy',
+        'Anthropology': 'Social Sciences & Policy',
+        'Asian-American Pacific Islander Studies': 'Social Sciences & Policy',
+        'Education Program': 'Social Sciences & Policy',
+        'Health: Science, Society and Policy': 'Social Sciences & Policy',
+        'Heller School for Social Policy and Management': 'Social Sciences & Policy',
+        'History': 'Social Sciences & Policy',
+        'Hornstein Jewish Professional Leadership': 'Social Sciences & Policy',
+        'International and Global Studies': 'Social Sciences & Policy',
+        'Journalism': 'Social Sciences & Policy',
+        'Legal Studies': 'Social Sciences & Policy',
+        'Politics': 'Social Sciences & Policy',
+        'Religious Studies': 'Social Sciences & Policy',
+        'Sociology': 'Social Sciences & Policy',
+        'South Asian Studies': 'Social Sciences & Policy',
+        "Women's, Gender and Sexuality Studies": 'Social Sciences & Policy',
+        'Prepaid School of Social Sciences and Social Policy': 'Social Sciences & Policy',
+
+        // --- Rabb School ---
+        'Rabb School': 'Rabb School',
+
+        // --- General / Library ---
+        'Collections Ledger': 'General / Library Wide',
+        'Core Resources and Services': 'General / Library Wide',
+        'Library Operations': 'General / Library Wide',
+        'Library and Information Science': 'General / Library Wide',
+        'Resource Administration, Operations, and Services': 'General / Library Wide',
+        'School, Department, and Program Support': 'General / Library Wide',
+        'Special Funds': 'General / Library Wide'
+    };
+
+    // --- ORPHAN FUND MAPPING ---
+    const orphanedFundMapping = {
+        'Prepaid Classical Studies Continuations': 'Arts, Humanities, & Culture',
+        'Prepaid Hebrew Language and Literature Continuations': 'Arts, Humanities, & Culture',
+        'Prepaid Islamic and Middle Eastern Studies Continuations': 'Arts, Humanities, & Culture', 
+        'Prepaid Italian Studies Continuations': 'Arts, Humanities, & Culture',
+        'Prepaid Latin American and Latino Studies Continuations': 'Arts, Humanities, & Culture',
+        'Prepaid Library and Information Science Continuations': 'General / Library Wide'
+    };
+
+    function getSchool(fundName) {
+        return schoolMapping[fundName] || 'General / Library Wide';
+    }
+
+    // --- HELPER: CALCULATE CURRENT FISCAL YEAR ---
+    function getFiscalYear() {
+        const now = new Date();
+        const month = now.getMonth();
+        const year = now.getFullYear();
+        return month >= 6 ? year + 1 : year;
+    }
+
+    // --- MAIN INITIALIZATION ---
+    init();
+
+    async function init() {
+        try {
+            // 1. Update Labels dynamically
+            const fy = getFiscalYear();
+            document.getElementById('kpi-fy-label').innerText = `Fiscal Year ${fy}`;
+            document.getElementById('budget-section-title').innerText = `FY${fy.toString().slice(-2)} Budget Overview`;
+
+            // 2. Fetch data (Archives JSON commented out)
+            const [currentData, prevData, usageData] = await Promise.all([
+                fetch(`${API_BASE}?period=current`).then(r => r.json()),
+                fetch(`${API_BASE}?period=previous`).then(r => r.json()),
+                // d3.json(ARCHIVES_JSON_PATH), // ARCHIVES DATA FETCH COMMENTED OUT
+                fetch(USAGE_API).then(r => r.json())
+            ]);
+
+            // Process budget data
+            processAndRender(currentData, prevData);
+
+            // Process and render archives data
+            // processArchivesData(archivesData); // ARCHIVES PROCESSING COMMENTED OUT
+
+            // Process and render Usage Profile Scatter Plot
+            if(usageData && Array.isArray(usageData)) {
+                drawScatterPlot(usageData);
+            }
+
+        } catch (e) {
+            console.error("Data Load Error", e);
+            document.getElementById('kpi-spent').innerText = "Error Loading Data";
+            // document.getElementById('archives-total').innerText = "Error";
+        }
+    }
+
+    function processAndRender(current, previous) {
+        const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+        // --- DATA PROCESSING LOGIC ---
+        let totalCurrentSpend = 0;
+        let schoolBreakdown = {};
+        
+        // 1. Pre-process Current Year: Create a Map of Fund Name -> Parent Fund
+        const currentYearFundMap = {};
+        current.forEach(row => {
+            if (row.fund_name && row.parent_fund) {
+                currentYearFundMap[row.fund_name.trim()] = row.parent_fund.trim();
+            }
+        });
+
+        // 2. Process Current Year (Expenditures)
+        current.forEach(row => {
+            const fund = (row.fund_name || "").trim();
+            const amount = parseFloat(row.expenditure) || 0;
+            const parent = (row.parent_fund || "Uncategorized").trim();
+
+            if (!fund.startsWith("Prepaid")) {
+                totalCurrentSpend += amount;
+                const school = getSchool(parent);
+                schoolBreakdown[school] = (schoolBreakdown[school] || 0) + amount;
+            }
+        });
+
+        // 3. Process Previous Year (Accruals)
+        previous.forEach(row => {
+            const fund = (row.fund_name || "").trim();
+            const amount = parseFloat(row.expenditure) || 0;
+            const parent = (row.parent_fund || "Uncategorized").trim();
+
+            if (fund.startsWith("Prepaid")) {
+                let school = 'General / Library Wide';
+
+                if (parent === "Prepaid (Carry over, divided over two fiscal year)") {
+                    if (orphanedFundMapping[fund]) {
+                        school = orphanedFundMapping[fund];
+                    }
+                    else if (currentYearFundMap[fund]) {
+                        const mappedParent = currentYearFundMap[fund];
+                        school = getSchool(mappedParent);
+                    } 
+                    else if (fund.startsWith("Prepaid ") && currentYearFundMap[fund.replace("Prepaid ", "")]) {
+                        const cleanFund = fund.replace("Prepaid ", "");
+                        const mappedParent = currentYearFundMap[cleanFund];
+                        school = getSchool(mappedParent);
+                    }
+                    else {
+                        if (schoolMapping[fund]) {
+                            school = schoolMapping[fund];
+                        }
+                    }
+                } else {
+                    school = getSchool(parent);
+                }
+
+                totalCurrentSpend += amount;
+                schoolBreakdown[school] = (schoolBreakdown[school] || 0) + amount;
+            }
+        });
+
+        // --- UI UPDATES: KPI CARDS ---
+        const remaining = BUDGET_LIMIT - totalCurrentSpend;
+        const percentLeft = (remaining / BUDGET_LIMIT) * 100;
+
+        document.getElementById('kpi-spent').innerText = fmt.format(totalCurrentSpend);
+        document.getElementById('kpi-remaining').innerText = fmt.format(remaining);
+        document.getElementById('kpi-percent').innerText = `${percentLeft.toFixed(1)}% of Budget Available`;
+
+        // Color coding
+        const kpiCard = document.getElementById('kpi-remaining-card');
+        kpiCard.className = 'kpi-card';
+        if (percentLeft < 10) kpiCard.classList.add('alert-danger');
+        else if (percentLeft < 25) kpiCard.classList.add('alert-warning');
+        else kpiCard.classList.add('alert-good');
+
+        // --- D3 CHART 1: School Breakdown (Horizontal Bar) ---
+        const sortedSchools = Object.entries(schoolBreakdown).sort((a,b) => b[1] - a[1]);
+        drawSchoolChart(sortedSchools);
+    }
+
+    // --- PROCESS ARCHIVES DATA FROM JSON (Kept for future use) ---
+    function processArchivesData(data) {
+        const records = data.records || [];
+        const totalRecords = records.length;
+        
+        // Calculate linear feet
+        let totalLinearFeet = 0;
+        let totalBoxes = 0;
+        let totalItems = 0;
+        
+        records.forEach(record => {
+            const extent = record.extent || '';
+            
+            // Parse linear feet
+            if (extent.includes('Linear Feet') || extent.includes('linear feet')) {
+                const match = extent.match(/[\d.]+/);
+                if (match) totalLinearFeet += parseFloat(match[0]);
+            }
+            
+            // Parse boxes
+            if (extent.toLowerCase().includes('box')) {
+                const match = extent.match(/[\d.]+/);
+                if (match) totalBoxes += parseFloat(match[0]);
+            }
+            
+            // Parse items
+            if (extent.toLowerCase().includes('item')) {
+                const match = extent.match(/[\d.]+/);
+                if (match) totalItems += parseFloat(match[0]);
+            }
+        });
+
+        // Calculate cataloged percentage
+        const catalogedCount = records.filter(r => r.cataloged === 'Yes').length;
+        const catalogedPct = (catalogedCount / totalRecords * 100).toFixed(1);
+        
+        // Extract subjects
+        const subjectCounts = {};
+        records.forEach(record => {
+            if (record.subjects && Array.isArray(record.subjects)) {
+                record.subjects.forEach(subj => {
+                    if (subj.term) {
+                        subjectCounts[subj.term] = (subjectCounts[subj.term] || 0) + 1;
+                    }
+                });
+            }
+        });
+
+        const topSubjects = Object.entries(subjectCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 15);
+
+        // Extract accession years
+        const yearCounts = {};
+        records.forEach(record => {
+            if (record.accession_date) {
+                const year = parseInt(record.accession_date.split('-')[0]);
+                if (year >= 2015 && year <= 2025) {
+                    yearCounts[year] = (yearCounts[year] || 0) + 1;
+                }
+            }
+        });
+
+        const accessionsByYear = [];
+        for (let year = 2015; year <= 2025; year++) {
+            accessionsByYear.push([year, yearCounts[year] || 0]);
+        }
+        
+        // Get file modification date from filename
+        const filename = ARCHIVES_JSON_PATH.split('/').pop();
+        const dateMatch = filename.match(/(\d{4})-(\d{2})-(\d{2})/);
+        const lastUpdated = dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}` : 'Unknown';
+
+        // Update KPIs
+        document.getElementById('archives-total').innerText = totalRecords.toLocaleString();
+        document.getElementById('archives-linear-feet').innerText = totalLinearFeet.toFixed(1);
+        document.getElementById('archives-cataloged-pct').innerText = catalogedPct + '%';
+        document.getElementById('archives-cataloged-detail').innerText = `${catalogedCount} of ${totalRecords} collections`;
+        document.getElementById('archives-materials').innerText = Math.round(totalBoxes + totalItems).toLocaleString();
+        document.getElementById('archives-materials-detail').innerText = `${Math.round(totalBoxes)} Boxes + ${Math.round(totalItems)} Items`;
+        
+        // Draw charts
+        drawSubjectsChart(topSubjects, lastUpdated);
+        drawAccessionsChart(accessionsByYear, lastUpdated);
+    }
+
+    // --- D3 DRAW FUNCTIONS (BUDGET) ---
+    
+    function drawSchoolChart(data) {
+        const container = document.getElementById('school-chart');
+        const margin = {top: 20, right: 100, bottom: 40, left: 220};
+        const width = container.offsetWidth - margin.left - margin.right;
+        const height = 350 - margin.top - margin.bottom;
+
+        d3.select("#school-chart").html("");
+
+        const svg = d3.select("#school-chart")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d[1])])
+            .range([0, width]);
+
+        const y = d3.scaleBand()
+            .range([0, height])
+            .domain(data.map(d => d[0]))
+            .padding(0.2);
+
+        svg.selectAll("rect")
+            .data(data)
+            .join("rect")
+            .attr("x", x(0))
+            .attr("y", d => y(d[0]))
+            .attr("width", d => x(d[1]))
+            .attr("height", y.bandwidth())
+            .attr("fill", "#003478");
+
+        svg.append("g")
+            .call(d3.axisLeft(y).tickSize(0))
+            .select(".domain").remove();
+
+        svg.selectAll(".label")
+            .data(data)
+            .enter()
+            .append("text")
+            .attr("class", "label")
+            .attr("x", d => x(d[1]) + 5)
+            .attr("y", d => y(d[0]) + y.bandwidth()/2 + 4)
+            .text(d => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(d[1]))
+            .attr("font-size", "12px")
+            .attr("fill", "#666");
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(5).tickFormat(d => d3.format("$.2s")(d).replace('G', 'B')))
+            .attr("color", "#999");
+
+        svg.selectAll("text").style("font-family", "sans-serif");
+    }
+
+    // --- D3 DRAW FUNCTIONS (ARCHIVES - Kept for future use) ---
+    
+    function drawSubjectsChart(data, lastUpdated) {
+        const container = document.getElementById('subjects-chart');
+        const margin = {top: 20, right: 60, bottom: 50, left: 180};
+        const width = container.offsetWidth - margin.left - margin.right;
+        const height = 450 - margin.top - margin.bottom;
+
+        d3.select("#subjects-chart").html("");
+
+        const svg = d3.select("#subjects-chart")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d[1])])
+            .range([0, width]);
+
+        const y = d3.scaleBand()
+            .range([0, height])
+            .domain(data.map(d => d[0]))
+            .padding(0.2);
+
+        svg.selectAll("rect")
+            .data(data)
+            .join("rect")
+            .attr("x", x(0))
+            .attr("y", d => y(d[0]))
+            .attr("width", d => x(d[1]))
+            .attr("height", y.bandwidth())
+            .attr("fill", "#003478");
+
+        svg.append("g")
+            .call(d3.axisLeft(y).tickSize(0))
+            .select(".domain").remove();
+
+        svg.selectAll(".label")
+            .data(data)
+            .enter()
+            .append("text")
+            .attr("x", d => x(d[1]) + 5)
+            .attr("y", d => y(d[0]) + y.bandwidth()/2 + 4)
+            .text(d => d[1])
+            .attr("font-size", "11px")
+            .attr("fill", "#666");
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(5))
+            .attr("color", "#999");
+            
+        // Add data source note
+        svg.append("text")
+            .attr("x", width)
+            .attr("y", height + 40)
+            .attr("text-anchor", "end")
+            .attr("font-size", "9px")
+            .attr("fill", "#999")
+            .text(`Source: /wp-content/uploads/custom-data/ • Updated ${lastUpdated}`);
+
+        svg.selectAll("text").style("font-family", "sans-serif");
+    }
+
+    function drawAccessionsChart(data, lastUpdated) {
+        const container = document.getElementById('accessions-chart');
+        const margin = {top: 20, right: 30, bottom: 60, left: 50};
+        const width = container.offsetWidth - margin.left - margin.right;
+        const height = 450 - margin.top - margin.bottom;
+
+        d3.select("#accessions-chart").html("");
+
+        const svg = d3.select("#accessions-chart")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const x = d3.scaleLinear()
+            .domain([2015, 2025])
+            .range([0, width]);
+
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d[1]) * 1.1])
+            .range([height, 0]);
+
+        const line = d3.line()
+            .x(d => x(d[0]))
+            .y(d => y(d[1]));
+
+        const area = d3.area()
+            .x(d => x(d[0]))
+            .y0(height)
+            .y1(d => y(d[1]));
+
+        svg.append("path")
+            .datum(data)
+            .attr("fill", "rgba(0, 52, 120, 0.15)")
+            .attr("d", area);
+
+        svg.append("path")
+            .datum(data)
+            .attr("fill", "none")
+            .attr("stroke", "#003478")
+            .attr("stroke-width", 2.5)
+            .attr("d", line);
+
+        const tooltip = d3.select("body").append("div").attr("class", "d3-tooltip");
+
+        svg.selectAll("circle")
+            .data(data)
+            .enter()
+            .append("circle")
+            .attr("cx", d => x(d[0]))
+            .attr("cy", d => y(d[1]))
+            .attr("r", 5)
+            .attr("fill", "#003478")
+            .on("mouseover", function(event, d) {
+                d3.select(this).attr("r", 7);
+                tooltip.transition().duration(200).style("opacity", .9);
+                tooltip.html(`${d[0]}: ${d[1]} accessions`)
+                    .style("left", (event.pageX) + "px")
+                    .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", function(d) {
+                d3.select(this).attr("r", 5);
+                tooltip.transition().duration(500).style("opacity", 0);
+            });
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).tickFormat(d3.format("d")).ticks(11))
+            .attr("color", "#666")
+            .selectAll("text")
+            .style("text-anchor", "end")
+            .attr("dx", "-.8em")
+            .attr("dy", ".15em")
+            .attr("transform", "rotate(-45)");
+
+        svg.append("g")
+            .call(d3.axisLeft(y).ticks(6))
+            .attr("color", "#666");
+            
+        // Add data source note
+        svg.append("text")
+            .attr("x", width)
+            .attr("y", height + 55)
+            .attr("text-anchor", "end")
+            .attr("font-size", "9px")
+            .attr("fill", "#999")
+            .text(`Source: /wp-content/uploads/custom-data/ • Updated ${lastUpdated}`);
+
+        svg.selectAll("text").style("font-family", "sans-serif");
+    }
+
+    // --- NEW: DRAW SCATTER PLOT ---
+    function drawScatterPlot(data) {
+        const container = document.getElementById('usage-scatter-chart');
+        const margin = {top: 20, right: 30, bottom: 60, left: 60};
+        const width = container.offsetWidth - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+
+        d3.select("#usage-scatter-chart").html("");
+
+        const svg = d3.select("#usage-scatter-chart")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        // X Scale: Item Count
+        const x = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d.item_count) * 1.05])
+            .range([0, width]);
+
+        // Y Scale: Loan Count
+        const y = d3.scaleLinear()
+            .domain([0, d3.max(data, d => d.loan_count) * 1.05])
+            .range([height, 0]);
+
+        // Color Scale based on first letter of classification
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+
+        // Tooltip
+        const tooltip = d3.select("body").selectAll(".d3-tooltip").empty() 
+                        ? d3.select("body").append("div").attr("class", "d3-tooltip")
+                        : d3.select(".d3-tooltip");
+
+        // Add Dots
+        svg.append('g')
+            .selectAll("circle")
+            .data(data)
+            .join("circle")
+            .attr("cx", d => x(d.item_count))
+            .attr("cy", d => y(d.loan_count))
+            .attr("r", 6)
+            .style("fill", d => color(d.classification.charAt(0)))
+            .style("opacity", 0.7)
+            .style("stroke", "white")
+            .on("mouseover", function(event, d) {
+                d3.select(this).attr("r", 9).style("opacity", 1);
+                
+                const turnover = d.item_count > 0 ? (d.loan_count / d.item_count).toFixed(2) : 0;
+                
+                tooltip.transition().duration(200).style("opacity", .9);
+                tooltip.html(`
+                    <strong>${d.classification}</strong>
+                    Items: ${d.item_count.toLocaleString()}<br/>
+                    Loans: ${d.loan_count.toLocaleString()}<br/>
+                    Turnover Rate: ${turnover}
+                `)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+            })
+            .on("mouseout", function(d) {
+                d3.select(this).attr("r", 6).style("opacity", 0.7);
+                tooltip.transition().duration(500).style("opacity", 0);
+            });
+
+        // X Axis
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(10))
+            .attr("color", "#666");
+
+        // X Axis Label
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("x", width)
+            .attr("y", height + 40)
+            .style("fill", "#666")
+            .style("font-size", "12px")
+            .text("Number of Items in Repository");
+
+        // Y Axis
+        svg.append("g")
+            .call(d3.axisLeft(y).ticks(10))
+            .attr("color", "#666");
+
+        // Y Axis Label
+        svg.append("text")
+            .attr("text-anchor", "end")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -45)
+            .attr("x", 0)
+            .style("fill", "#666")
+            .style("font-size", "12px")
+            .text("Number of Loans");
+            
+        // Grid lines (optional but helpful for scatter)
+        svg.append("g")
+            .attr("class", "grid")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x).ticks(10).tickSize(-height).tickFormat("").tickSizeOuter(0))
+            .style("stroke-dasharray", "3,3")
+            .style("stroke-opacity", 0.1);
+
+        svg.append("g")
+            .attr("class", "grid")
+            .call(d3.axisLeft(y).ticks(10).tickSize(-width).tickFormat("").tickSizeOuter(0))
+            .style("stroke-dasharray", "3,3")
+            .style("stroke-opacity", 0.1);
+            
+        svg.selectAll("text").style("font-family", "sans-serif");
+    }
+});
+</script>
