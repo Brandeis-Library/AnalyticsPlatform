@@ -1,0 +1,780 @@
+<script src="https://d3js.org/d3.v7.min.js"></script>
+
+<style>
+  /* --- Layout & Typography --- */
+  .analytics-container { 
+      max-width: 1200px; 
+      margin: 0 auto; 
+      font-family: "Whitney", "Helvetica Neue", Helvetica, Arial, sans-serif; 
+      color: #333; 
+  }
+  .analytics-intro { 
+      margin-bottom: 40px; 
+      line-height: 1.6; 
+      max-width: 900px; 
+  }
+  .analytics-intro h1 { 
+      color: #003478; 
+      font-size: 2.2rem; 
+      margin-bottom: 10px; 
+  }
+
+  /* --- Grid Layout --- */
+  .analytics-grid { 
+    display: grid; 
+    grid-template-columns: 1fr; 
+    gap: 50px; 
+  }
+    
+  /* --- Card Container Styles --- */
+  .chart-card { 
+    background: #fff; 
+    padding: 30px; 
+    border-left: 5px solid #003478; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1); 
+    border-radius: 4px; 
+    display: flex; 
+    flex-direction: column; 
+    min-height: 600px; 
+  }
+
+  .chart-card-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      border-bottom: 1px solid #eee; 
+      margin-bottom: 25px; 
+      padding-bottom: 15px; 
+  }
+  .chart-card h2 { 
+      color: #003478; 
+      font-size: 1.4rem; 
+      margin: 0; 
+      padding: 0; 
+      border: none; 
+  }
+    
+  /* --- CHART 1 STYLES (Assets) --- */
+  .bar { fill: #003478; opacity: 0.8; transition: opacity 0.3s; }
+  .bar:hover { opacity: 1; cursor: pointer; }
+  .line-path { fill: none; stroke: #D14124; stroke-width: 3px; }
+  .line-dot { fill: #fff; stroke: #D14124; stroke-width: 2px; }
+  .axis-text { font-family: "Whitney", sans-serif; font-size: 13px; } 
+  .data-label { font-family: "Whitney", sans-serif; font-size: 11px; font-weight: bold; text-anchor: middle; }
+    
+  /* --- CHART 2 STYLES (Treemap) --- */
+  #openalex-chart { 
+      width: 100%; 
+      height: 500px; 
+      position: relative; 
+      font-family: "Whitney", sans-serif; 
+  }
+  .treemap-rect { stroke: #fff; stroke-width: 1px; transition: fill-opacity 0.2s; }
+  .treemap-rect:hover { fill-opacity: 0.8; cursor: pointer; stroke-width: 2px; }
+  .treemap-label { font-size: 12px; fill: #fff; pointer-events: none; text-anchor: start; font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+  .treemap-value { font-size: 10px; fill: rgba(255,255,255,0.8); pointer-events: none; }
+    
+  /* Tooltip - Increased Z-Index to appear over modals */
+  .chart-tooltip { position: absolute; text-align: left; padding: 10px; font: 12px "Whitney", sans-serif; background: rgba(0, 0, 0, 0.9); color: #fff; border-radius: 4px; pointer-events: none; opacity: 0; z-index: 1001; box-shadow: 0 4px 6px rgba(0,0,0,0.3); line-height: 1.4; }
+    
+  /* Modal Overlay */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-content { background: #fff; padding: 20px; width: 90%; max-width: 1000px; height: 80%; border-radius: 8px; display: flex; flex-direction: column; }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+  .modal-body { flex-grow: 1; position: relative; width: 100%; }
+  .modal-close { font-size: 28px; cursor: pointer; color: #aaa; }
+  .modal-close:hover { color: #000; }
+  .expand-btn { background: none; border: none; cursor: pointer; color: #666; }
+  .expand-btn:hover { color: #003478; }
+</style>
+
+<div class="analytics-container">
+    <div class="analytics-intro">
+        <p>ScholarWorks at Brandeis University preserves and provides access to the research, scholarship, and creative works of our community. The analytics below demonstrate the global reach and growing impact of these digital collections.</p>
+    </div>
+    <div class="analytics-grid">
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <h2>Scholarship Views and Counts (10 Year Trend)</h2>
+                <button class="expand-btn" onclick="openModal('d3-dashboard', 'Asset Views (10 Year Trend)')">
+                      <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                </button>
+            </div>
+            <div style="position:relative;width:100%;" id="d3-dashboard">Loading data...</div>
+        </div>
+        
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <h2>Research Collaborations over the Last 3 Years</h2>
+                <div style="align-items:center;display:flex;gap:10px;">
+                    <select class="chart-control" id="authorLimit">
+                        <option value="10">Max Authors: 10</option>
+                        <option value="50" selected="">Max Authors: 50</option>
+                        <option value="100">Max Authors: 100</option>
+                        <option value="10000">All Papers</option>
+                    </select>
+                    <button class="expand-btn" onclick="openModal('openalex-chart', 'Research Collaborations')">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="openalex-chart">
+                <div style="color:#666;left:50%;position:absolute;top:50%;transform:translate(-50%, -50%);" id="openalex-loading">
+                    <em>Fetching collaboration data...</em>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <h2>Citation Impact by Field (FWCI)</h2>
+                <button class="expand-btn" onclick="openModal('citation-impact-chart', 'Citation Impact by Field (FWCI)')">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"></path></svg>
+                </button>
+            </div>
+            <div id="citation-impact-chart" style="width:100%; height:500px; position:relative;">
+                 <div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center;">
+                    <em>Loading impact data...</em>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-card">
+            <div class="chart-card-header"><h2>Top 10 High-Impact Fields (Median FWCI)</h2></div>
+            <div id="top-subjects-chart" style="width:100%; height:400px; position:relative;"></div>
+        </div>
+
+        <div class="chart-card">
+            <div class="chart-card-header">
+                <h2>Institutional Open Access Cost Avoidance</h2>
+                <div style="font-size:12px; color:#666;">Verified against 15 Publisher Agreements</div>
+            </div>
+            
+            <div id="oa-cost-container" style="display:flex; flex-direction:column; gap:30px;">
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; align-items:center; border-bottom:1px solid #eee; padding-bottom:30px;">
+                    <div style="text-align:center;">
+                        <div style="font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 1px;">Total Cost Avoidance</div>
+                        <div id="oa-big-number" style="font-size: 52px; font-weight: bold; color: #003478; margin: 10px 0;">Loading...</div>
+                        <div style="font-size: 13px; color: #444;">Cumulative value of <span id="oa-total-count">0</span> articles published OA via Library Agreements.</div>
+                    </div>
+                    <div style="background:#f9f9f9; padding:20px; border-radius:8px; border-left:4px solid #D14124;">
+                        <h4 style="margin-top:0; color:#333;">Impact ROI</h4>
+                        <p style="font-size:14px; line-height:1.5;">
+                            The Library's direct OA Fund is capped at <strong>$25,000/year</strong>. 
+                            Institutional agreements have avoided costs equivalent to <strong id="oa-multiple">...</strong> times the annual fund size, ensuring broader access without draining direct support budgets.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 style="color:#003478; font-size:1.1rem; margin-bottom:15px;">Cost Avoidance by Publisher</h3>
+                    <table style="width:100%; border-collapse: collapse; font-size:13px; font-family:'Whitney', sans-serif;">
+                        <thead>
+                            <tr style="background:#003478; color:#fff; text-align:left;">
+                                <th style="padding:10px; border-radius:4px 0 0 4px;">Publisher</th>
+                                <th style="padding:10px;">Articles Covered</th>
+                                <th style="padding:10px; border-radius:0 4px 4px 0; text-align:right;">Total Avoided</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oa-publisher-tbody">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:end; margin-bottom:10px;">
+                         <h3 style="color:#003478; font-size:1.1rem; margin:0;">Article Metadata</h3>
+                         <span style="font-size:11px; color:#666;">Scroll to see all</span>
+                    </div>
+                    
+                    <div style="max-height: 400px; overflow-y: auto; border:1px solid #eee; border-radius:4px;">
+                        <table style="width:100%; border-collapse: collapse; font-size:12px;">
+                            <thead style="position:sticky; top:0; background:#f0f0f0;">
+                                <tr style="text-align:left; color:#333;">
+                                    <th style="padding:8px; border-bottom:2px solid #ddd;">Date</th>
+                                    <th style="padding:8px; border-bottom:2px solid #ddd;">Journal</th>
+                                    <th style="padding:8px; border-bottom:2px solid #ddd; width:40%;">Title</th>
+                                    <th style="padding:8px; border-bottom:2px solid #ddd;">APC (List)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="oa-article-tbody">
+                                <tr><td colspan="4" style="padding:20px; text-align:center;">Loading articles...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal-overlay" id="chartModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 style="color:#003478;margin:0;" id="modalTitle">Analytics Detail</h2>
+            <span class="modal-close" onclick="closeModal()">×</span>
+        </div>
+        <div class="modal-body" id="modalBody">&nbsp;</div>
+    </div>
+</div>
+
+<script>
+// --- GLOBAL MODAL FUNCTIONS ---
+let currentParent = null; 
+let currentElementId = null;
+
+function openModal(elementId, title) {
+    const modal = document.getElementById('chartModal');
+    const modalBody = document.getElementById('modalBody');
+    const modalTitle = document.getElementById('modalTitle');
+    const chartElement = document.getElementById(elementId);
+    currentElementId = elementId;
+    currentParent = chartElement.parentNode;
+    modalBody.appendChild(chartElement);
+    modalTitle.innerText = title;
+    modal.style.display = "flex";
+    setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 50);
+}
+
+function closeModal() {
+    const modal = document.getElementById('chartModal');
+    const chartElement = document.getElementById(currentElementId);
+    if (currentParent && chartElement) {
+        currentParent.appendChild(chartElement);
+    }
+    modal.style.display = "none";
+    setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 50);
+}
+
+window.onclick = function(event) {
+    if (event.target == document.getElementById('chartModal')) closeModal();
+}
+
+// --- MAIN CHART LOGIC ---
+document.addEventListener("DOMContentLoaded", function() {
+    
+    // --- CHART 1: Ex Libris Analytics ---
+    const chartContainer1 = document.getElementById('d3-dashboard');
+    
+    d3.json('/wp-json/brandeis/v1/research-analytics').then(data => {
+        chartContainer1.innerHTML = ""; 
+        
+        const margin = {top: 40, right: 85, bottom: 50, left: 85}; 
+        const containerWidth = chartContainer1.getBoundingClientRect().width;
+        const width = containerWidth - margin.left - margin.right;
+        const height = 500 - margin.top - margin.bottom;
+        
+        const svg = d3.select("#d3-dashboard")
+            .append("svg")
+            .attr("viewBox", `0 0 ${width + margin.left + margin.right} ${height + margin.top + margin.bottom}`)
+            .attr("preserveAspectRatio", "xMidYMid meet")
+            .style("width", "100%")
+            .style("height", "auto")
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+            
+        const cleanData = data.map(d => ({
+            year: d.year,
+            views: +d.files_views,
+            assets: +d.asset_count
+        }));
+        
+        const x = d3.scaleBand()
+            .range([ 0, width ])
+            .domain(cleanData.map(d => d.year))
+            .padding(0.3);
+            
+        const yLeft = d3.scaleLinear()
+            .domain([0, d3.max(cleanData, d => d.views) * 1.2]) 
+            .range([ height, 0]);
+
+        const yRight = d3.scaleLinear()
+            .domain([0, d3.max(cleanData, d => d.assets) * 1.2])
+            .range([ height, 0]);
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height})`)
+            .call(d3.axisBottom(x))
+            .selectAll("text")
+            .attr("class", "axis-text");
+            
+        svg.append("g")
+            .call(d3.axisLeft(yLeft))
+            .attr("class", "axis-text")
+            .style("color", "#003478");
+            
+        svg.append("g")
+            .attr("transform", `translate(${width}, 0)`)
+            .call(d3.axisRight(yRight))
+            .attr("class", "axis-text")
+            .style("color", "#D14124");
+            
+        svg.append("text").attr("transform", "rotate(-90)").attr("y", 0 - margin.left + 20).attr("x",0 - (height / 2)).style("text-anchor", "middle").style("font-size", "12px").style("fill", "#003478").text("Scholarship Views");
+        svg.append("text").attr("transform", "rotate(90)").attr("y", -width - margin.right + 20).attr("x", (height / 2)).style("text-anchor", "middle").style("font-size", "12px").style("fill", "#D14124").text("Scholarship Count");
+
+        const tooltip = d3.select("#d3-dashboard").append("div").attr("class", "chart-tooltip");
+        
+        svg.selectAll("mybar").data(cleanData).enter().append("rect").attr("class", "bar")
+            .attr("x", d => x(d.year)).attr("y", d => yLeft(d.views)).attr("width", x.bandwidth()).attr("height", d => height - yLeft(d.views))
+            .on("mouseover", function(event, d) {
+                d3.select(this).style("fill", "#6CACE4");
+                tooltip.transition().duration(200).style("opacity", .9);
+                tooltip.html(`<strong>${d.year}</strong><br/>Views: ${d.views.toLocaleString()}<br/><span style="color:#ff8a80">Assets: ${d.assets.toLocaleString()}</span>`)
+                    .style("left", (event.pageX - chartContainer1.getBoundingClientRect().left + 20) + "px")
+                    .style("top", (event.pageY - chartContainer1.getBoundingClientRect().top - 40) + "px");
+            })
+            .on("mouseout", function() {
+                d3.select(this).style("fill", "#003478");
+                tooltip.transition().duration(500).style("opacity", 0);
+            });
+            
+        const lineGenerator = d3.line().x(d => x(d.year) + x.bandwidth() / 2).y(d => yRight(d.assets));
+        svg.append("path").datum(cleanData).attr("class", "line-path").attr("d", lineGenerator);
+        svg.selectAll("dot").data(cleanData).enter().append("circle").attr("class", "line-dot").attr("cx", d => x(d.year) + x.bandwidth() / 2).attr("cy", d => yRight(d.assets)).attr("r", 4);
+
+        svg.selectAll(".label-bar")
+            .data(cleanData)
+            .enter().append("text")
+            .attr("class", "data-label")
+            .attr("x", d => x(d.year) + x.bandwidth() / 2)
+            .attr("y", d => yLeft(d.views) - 5)
+            .style("fill", "#003478")
+            .text(d => d.views.toLocaleString());
+
+        svg.selectAll(".label-line")
+            .data(cleanData)
+            .enter().append("text")
+            .attr("class", "data-label")
+            .attr("x", d => x(d.year) + x.bandwidth() / 2)
+            .attr("y", d => {
+                const barTop = yLeft(d.views);
+                const linePoint = yRight(d.assets);
+                if (Math.abs(barTop - linePoint) < 25) { return linePoint - 25; }
+                return linePoint - 10;
+            })
+            .style("fill", "#D14124")
+            .text(d => d.assets.toLocaleString());
+            
+    }).catch(error => {
+        console.error("Error loading Chart 1:", error);
+        chartContainer1.innerText = "Error loading data. Check console for details.";
+    });
+
+    // --- CHART 2: OpenAlex Collaborations ---
+    (function initOpenAlexChart() {
+        const containerId = 'openalex-chart';
+        const container = document.getElementById(containerId);
+        const loadingEl = document.getElementById('openalex-loading');
+        const limitSelect = document.getElementById('authorLimit');
+        
+        const API_ENDPOINT = '/wp-json/brandeis/v1/openalex-collaborations'; 
+        
+        const color = d3.scaleOrdinal().range(["#003478", "#005EB8", "#4C8C2B", "#D14124", "#B9975B", "#58595B", "#009DA3"]);
+        let rawData = [];
+        const tooltip = d3.select(`#${containerId}`).append("div").attr("class", "chart-tooltip");
+
+        async function fetchCollaborations() {
+            try {
+                const response = await fetch(API_ENDPOINT);
+                if (!response.ok) throw new Error('API Error');
+                rawData = await response.json();
+                loadingEl.style.display = 'none';
+                updateGraph();
+            } catch (err) {
+                console.error(err);
+                loadingEl.innerHTML = `<span style="color:#D14124">Error: ${err.message}</span>`;
+            }
+        }
+        
+        function processDataForTreemap(limit) {
+            const filtered = rawData.filter(d => d.author_count <= limit);
+            const counts = {};
+            filtered.forEach(d => {
+                if (!counts[d.target_name]) counts[d.target_name] = 0;
+                counts[d.target_name]++;
+            });
+            const children = Object.keys(counts)
+                .map(key => ({ name: key, value: counts[key] }))
+                .filter(node => node.value >= 2); 
+            return { name: "Root", children: children };
+        }
+        
+        function updateGraph() {
+            const limit = parseInt(limitSelect.value);
+            const treeData = processDataForTreemap(limit);
+            container.innerHTML = ''; 
+            container.appendChild(tooltip.node());
+            
+            if (!treeData.children || treeData.children.length === 0) {
+                container.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#666;">No collaborations found with 2+ papers.</div>';
+                return;
+            }
+            
+            const width = container.clientWidth;
+            const height = container.clientHeight || 500; 
+            const svg = d3.select(`#${containerId}`).append("svg").attr("viewBox", `0 0 ${width} ${height}`).attr("preserveAspectRatio", "none").style("width", "100%").style("height", "100%");
+            const root = d3.hierarchy(treeData).sum(d => d.value).sort((a, b) => b.value - a.value);
+            d3.treemap().size([width, height]).padding(2).round(true)(root);
+            
+            const leaf = svg.selectAll("g").data(root.leaves()).join("g").attr("transform", d => `translate(${d.x0},${d.y0})`);
+            
+            leaf.append("rect").attr("class", "treemap-rect")
+                .attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0).attr("fill", d => color(d.data.name))
+                .on("mousemove", function(event, d) {
+                    tooltip.style("opacity", 1).html(`<strong>${d.data.name}</strong><br/>Joint Papers: ${d.data.value}`)
+                        .style("left", (event.offsetX + 10) + "px").style("top", (event.offsetY + 10) + "px");
+                })
+                .on("mouseout", function() { tooltip.style("opacity", 0); });
+                
+            leaf.append("text").attr("class", "treemap-label").attr("x", 4).attr("y", 14).text(d => d.data.name)
+                .style("opacity", d => (d.x1 - d.x0) > 60 && (d.y1 - d.y0) > 30 ? 1 : 0);
+            leaf.append("text").attr("class", "treemap-value").attr("x", 4).attr("y", 26).text(d => `${d.data.value}`)
+                .style("opacity", d => (d.x1 - d.x0) > 60 && (d.y1 - d.y0) > 40 ? 1 : 0);
+        }
+        
+        limitSelect.addEventListener('change', updateGraph);
+        window.addEventListener('resize', () => { setTimeout(updateGraph, 100); });
+        fetchCollaborations();
+    })();
+
+    // --- CHART 3 & 4: IMPACT ANALYTICS ---
+    (function initImpactAnalytics() {
+        const beeswarmContainer = document.getElementById('citation-impact-chart');
+        const barChartContainer = document.getElementById('top-subjects-chart'); 
+        
+        let rawImpactData = null; 
+        const tooltip = d3.select("body").append("div").attr("class", "chart-tooltip");
+
+        // VISUALIZATION 1: BEESWARM
+        function drawBeeswarmChart(data) {
+            
+            if (!beeswarmContainer) return;
+            beeswarmContainer.innerHTML = ""; 
+
+            if (!data || data.length === 0) {
+                beeswarmContainer.innerHTML = "<div style='padding:40px;text-align:center;'>No high-impact data found for this period.</div>";
+                return;
+            }
+            
+            const simulationData = data.map(d => ({...d}));
+
+            const margin = {top: 20, right: 30, bottom: 50, left: 30};
+            const width = beeswarmContainer.getBoundingClientRect().width;
+            const height = 500;
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const svg = d3.select(beeswarmContainer)
+                .append("svg")
+                .attr("viewBox", `0 0 ${width} ${height}`)
+                .style("width", "100%")
+                .style("height", "auto")
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(simulationData, d => d.fwci) > 10 ? d3.max(simulationData, d => d.fwci) : 10]) 
+                .range([0, innerWidth])
+                .nice();
+
+            const r = d3.scaleSqrt()
+                .domain([0, d3.max(simulationData, d => d.citations || 0)])
+                .range([3, 12]); 
+
+            const colorScale = d3.scaleOrdinal(d3.schemeTableau10);
+
+            const simulation = d3.forceSimulation(simulationData)
+                .force("x", d3.forceX(d => x(d.fwci)).strength(1))
+                .force("y", d3.forceY(innerHeight / 2).strength(0.1)) 
+                .force("collide", d3.forceCollide(d => r(d.citations || 0) + 1.5)) 
+                .stop();
+
+            for (let i = 0; i < 300; ++i) simulation.tick();
+
+            const circles = svg.selectAll(".bee-circle")
+                .data(simulationData)
+                .enter().append("circle")
+                .attr("class", "bee-circle")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", d => r(d.citations || 0))
+                .attr("fill", d => colorScale(d.subfield)) 
+                .attr("opacity", 0.8)
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 0.5);
+
+            const refX = x(1.0);
+            
+            svg.append("line")
+                .attr("x1", refX).attr("x2", refX)
+                .attr("y1", 0).attr("y2", innerHeight)
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 5) 
+                .attr("opacity", 0.7);
+
+            svg.append("line")
+                .attr("x1", refX).attr("x2", refX)
+                .attr("y1", 0).attr("y2", innerHeight)
+                .attr("stroke", "#D14124") 
+                .attr("stroke-dasharray", "5 3")
+                .attr("stroke-width", 2.5);
+
+            svg.append("text")
+                .attr("x", refX + 8)
+                .attr("y", 15)
+                .text("World Average (1.0)")
+                .style("fill", "#D14124")
+                .style("font-size", "11px")
+                .style("font-weight", "bold")
+                .style("text-shadow", "0px 0px 4px #fff");
+
+            circles.on("mousemove", function(event, d) {
+                d3.select(this).attr("opacity", 1).attr("stroke", "#000").attr("stroke-width", 1.5);
+                
+                tooltip.style("opacity", 1)
+                    .html(`
+                        <strong>${d.title}</strong><br/>
+                        <span style="color:${colorScale(d.subfield)};font-weight:bold;font-size:11px">${d.subfield}</span>
+                        <span style="color:#ccc;font-size:10px"> (${d.year})</span><br/>
+                        <hr style="margin:5px 0;border:0;border-top:1px solid #555"/>
+                        FWCI: <strong>${d.fwci.toFixed(2)}</strong><br/>
+                        Citations: ${d.citations || 0}
+                    `)
+                    .style("left", (event.pageX + 10) + "px")
+                    .style("top", (event.pageY - 20) + "px");
+            })
+            .on("mouseleave", function() {
+                d3.select(this).attr("opacity", 0.8).attr("stroke", "#fff").attr("stroke-width", 0.5);
+                tooltip.style("opacity", 0);
+            });
+
+            svg.append("g")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(d3.axisBottom(x).ticks(10))
+                .select(".domain").remove();
+
+            svg.append("text")
+                .attr("text-anchor", "end")
+                .attr("x", innerWidth)
+                .attr("y", innerHeight + 40)
+                .text("Citation Impact (FWCI) →")
+                .style("font-size", "12px")
+                .style("fill", "#666");
+        }
+
+        // VISUALIZATION 2: TOP 10 SUBJECTS
+        function drawTopSubjectsChart(data) {
+            if (!barChartContainer) return;
+            barChartContainer.innerHTML = "";
+            
+            if(!data || data.length === 0) return;
+
+            const groups = d3.group(data, d => d.subfield);
+            
+            let subjectStats = Array.from(groups, ([key, values]) => {
+                const fwcistList = values.map(d => d.fwci).sort(d3.ascending);
+                const count = values.length;
+                const medianFWCI = d3.median(fwcistList) || 0;
+                return { subfield: key, median: medianFWCI, count: count };
+            });
+
+            const MIN_PAPERS = 3; 
+            const top10 = subjectStats
+                .filter(d => d.count >= MIN_PAPERS) 
+                .sort((a, b) => b.median - a.median) 
+                .slice(0, 10); 
+
+            if (top10.length === 0) {
+                barChartContainer.innerHTML = "<div style='padding:40px;text-align:center;color:#666'>Not enough data to rank subjects (Need fields with 3+ papers).</div>";
+                return;
+            }
+
+            const margin = {top: 20, right: 30, bottom: 40, left: 180}; 
+            const width = barChartContainer.getBoundingClientRect().width;
+            const height = 400; 
+            const innerWidth = width - margin.left - margin.right;
+            const innerHeight = height - margin.top - margin.bottom;
+
+            const svg = d3.select(barChartContainer)
+                .append("svg")
+                .attr("viewBox", `0 0 ${width} ${height}`)
+                .style("width", "100%")
+                .style("height", "auto")
+                .append("g")
+                .attr("transform", `translate(${margin.left},${margin.top})`);
+
+            const y = d3.scaleBand()
+                .domain(top10.map(d => d.subfield))
+                .range([0, innerHeight])
+                .padding(0.3);
+
+            const x = d3.scaleLinear()
+                .domain([0, d3.max(top10, d => d.median) * 1.1])
+                .range([0, innerWidth]);
+
+            svg.selectAll(".bar")
+                .data(top10)
+                .enter().append("rect")
+                .attr("class", "bar")
+                .attr("y", d => y(d.subfield))
+                .attr("x", 0)
+                .attr("height", y.bandwidth())
+                .attr("width", d => x(d.median))
+                .attr("fill", "#003478")
+                .attr("rx", 3) 
+                .on("mousemove", function(event, d) {
+                      d3.select(this).attr("fill", "#005EB8");
+                      tooltip.style("opacity", 1)
+                        .html(`<strong>${d.subfield}</strong><br/>Median FWCI: ${d.median.toFixed(2)}<br/>Papers: ${d.count}`)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 20) + "px");
+                })
+                .on("mouseleave", function() {
+                      d3.select(this).attr("fill", "#003478");
+                      tooltip.style("opacity", 0);
+                });
+
+            svg.append("g")
+                .call(d3.axisLeft(y).tickSize(0))
+                .style("font-size", "11px")
+                .style("font-family", "Whitney, sans-serif")
+                .select(".domain").remove(); 
+
+            svg.append("g")
+                .attr("transform", `translate(0,${innerHeight})`)
+                .call(d3.axisBottom(x).ticks(5))
+                .style("font-size", "10px");
+
+            svg.selectAll(".label")
+                .data(top10)
+                .enter().append("text")
+                .attr("x", d => x(d.median) + 5)
+                .attr("y", d => y(d.subfield) + y.bandwidth() / 2 + 4)
+                .text(d => d.median.toFixed(2))
+                .style("font-size", "11px")
+                .style("font-weight", "bold")
+                .style("fill", "#333");
+                
+            const refX = x(1.0);
+            if (refX < innerWidth) {
+                svg.append("line")
+                    .attr("x1", refX).attr("x2", refX)
+                    .attr("y1", 0).attr("y2", innerHeight)
+                    .attr("stroke", "#D14124")
+                    .attr("stroke-dasharray", "4 4")
+                    .attr("stroke-width", 1);
+                svg.append("text")
+                    .attr("x", refX)
+                    .attr("y", -5)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "10px")
+                    .style("fill", "#D14124")
+                    .text("World Avg");
+            }
+        }
+
+        d3.json('/wp-json/brandeis/v1/citation-impact').then(data => {
+            
+            const currentYear = new Date().getFullYear();
+            const cutoffYear = currentYear - 3; 
+
+            rawImpactData = data.filter(d => {
+                const pubYear = parseInt(d.year);
+                const subfield = (d.subfield || "").toLowerCase();
+                const isRecent = pubYear && pubYear >= cutoffYear;
+                const isHEP = subfield.includes("high energy physics") || subfield.includes("nuclear and high energy");
+
+                return isRecent && !isHEP;
+            });
+            
+            drawBeeswarmChart(rawImpactData); 
+            drawTopSubjectsChart(rawImpactData);
+
+        }).catch(err => {
+            console.error("Analytics Error:", err);
+            beeswarmContainer.innerHTML = "<div style='color:red; padding:20px;'>Error loading data.</div>";
+        });
+        
+        window.addEventListener('resize', () => { 
+            setTimeout(() => {
+                if(rawImpactData) {
+                    drawBeeswarmChart(rawImpactData); 
+                    drawTopSubjectsChart(rawImpactData);
+                }
+            }, 100); 
+        });
+    })();
+    
+    // --- CHART 5: VERIFIED COST AVOIDANCE ---
+    (function initOACostChart() {
+        const numberEl = document.getElementById('oa-big-number');
+        const countEl = document.getElementById('oa-total-count');
+        const multipleEl = document.getElementById('oa-multiple');
+        const publisherBody = document.getElementById('oa-publisher-tbody');
+        const articleBody = document.getElementById('oa-article-tbody');
+        
+        // Formatter for Currency
+        const usd = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            maximumFractionDigits: 0
+        });
+
+        d3.json('/wp-json/brandeis/v1/oa-cost-avoidance').then(data => {
+            
+            // 1. Update KPI Section
+            numberEl.innerText = usd.format(data.total_avoided);
+            countEl.innerText = data.article_count;
+            
+            // Calculate ROI multiple (Total Saved / 25k)
+            const multiple = (data.total_avoided / 25000).toFixed(1);
+            multipleEl.innerText = multiple + "x";
+            multipleEl.style.color = "#D14124";
+
+            // 2. Populate Publisher Table
+            publisherBody.innerHTML = "";
+            data.publisher_stats.forEach(pub => {
+                const row = `
+                    <tr style="border-bottom:1px solid #eee;">
+                        <td style="padding:10px; font-weight:bold; color:#333;">${pub.name}</td>
+                        <td style="padding:10px;">${pub.count}</td>
+                        <td style="padding:10px; text-align:right; font-family:monospace; font-size:13px;">${usd.format(pub.savings)}</td>
+                    </tr>
+                `;
+                publisherBody.insertAdjacentHTML('beforeend', row);
+            });
+
+            // 3. Populate Article Table
+            articleBody.innerHTML = "";
+            data.articles.forEach((art, index) => {
+                const bg = index % 2 === 0 ? '#fff' : '#f9f9f9';
+                const row = `
+                    <tr style="background:${bg}; border-bottom:1px solid #eee;">
+                        <td style="padding:8px; white-space:nowrap;">${art.date}</td>
+                        <td style="padding:8px;">
+                            ${art.journal}<br/>
+                            <span style="font-size:10px; color:#666; text-transform:uppercase;">${art.publisher}</span>
+                        </td>
+                        <td style="padding:8px;">
+                            <a href="${art.link}" target="_blank" style="color:#003478; text-decoration:none; font-weight:500;">
+                                ${art.title}
+                            </a><br/>
+                            <span style="font-size:11px; color:#666;">Author: ${art.author}</span>
+                        </td>
+                        <td style="padding:8px; font-family:monospace;">${usd.format(art.cost)}</td>
+                    </tr>
+                `;
+                articleBody.insertAdjacentHTML('beforeend', row);
+            });
+
+        }).catch(err => {
+            console.error("OA Cost Error:", err);
+            numberEl.innerText = "Error";
+            publisherBody.innerHTML = "<tr><td colspan='3'>Data unavailable</td></tr>";
+            articleBody.innerHTML = "<tr><td colspan='4'>Data unavailable</td></tr>";
+        });
+    })();
+});
+</script>
